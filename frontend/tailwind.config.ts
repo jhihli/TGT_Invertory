@@ -18,12 +18,20 @@ const config: Config = {
           600: '#2F6FEB',
         },
       },
-    },
-    keyframes: {
-      shimmer: {
-        '100%': {
-          transform: 'translateX(100%)',
+      keyframes: {
+        shimmer: {
+          '100%': {
+            transform: 'translateX(100%)',
+          },
         },
+        spin: {
+          'from': { transform: 'rotate(0deg)' },
+          'to': { transform: 'rotate(360deg)' }
+        }
+      },
+      animation: {
+        'spin': 'spin 1s linear infinite',
+        'spin-slow': 'spin 2s linear infinite',
       },
     },
   },

@@ -9,9 +9,6 @@ import postgres from 'postgres';
 const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
 const NEXTAUTH_URL = process.env.NEXTAUTH_URL;
 
-
-
-
 const InvoiceSchema = z.object({
   id: z.string(),
   customerId: z.string({
@@ -44,86 +41,57 @@ const ProductSchema = z.object({
 //   message?: string | null;
 // };
 
-export async function createProduct(formData: FormData) {
-  const validatedFields = ProductSchema.safeParse({
-    number: formData.get('number'),
-    barcode: formData.get('barcode'),
-    qty: formData.get('qty'),
-    date: formData.get('date'),
-  });
-
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Failed to create product.',
-    };
-  }
-
-  const { number, barcode, qty, date } = validatedFields.data;
-  
-  // Get additional fields from the form
-  const vender = formData.get('vender') || 'default_vender';
-  const client = formData.get('client') || 'default_client';
-  const category = formData.get('category') || 'default_category';
-
+export async function createProduct(formData: FormData | Array<any>) {
   try {
     if (!API_URL) {
       throw new Error("API URL is not set!");
     }
 
-    console.log('Sending product data to:', `${API_URL}/product/products/`);
-    
-    // Use the products endpoint with POST method
+    const productsData = formData instanceof FormData 
+      ? [{
+          number: formData.get('number') || '',
+          barcode: formData.get('barcode') || '',
+          qty: parseInt(formData.get('qty') as string) || 0,
+          date: formData.get('date'),
+          vender: formData.get('vender') || '',
+          client: formData.get('client') || '',
+          category: formData.get('category') || '0'
+        }]
+      : formData.map(prod => ({
+          ...prod,
+          qty: parseInt(prod.qty) || 0
+        }));
+
+    //console.log('Sending data:', productsData); // Debug log
+
     const response = await fetch(`${API_URL}/product/products/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        number: number || 'default_number',
-        barcode: barcode || 'default_barcode',
-        qty: parseInt(qty) || 0,  // Convert to integer as required by the model
-        date,
-        vender,
-        client,
-        category
-      }),
+      body: JSON.stringify(productsData),
     });
 
-    if (!response.ok) {
-      const responseText = await response.text();
-      console.error('Server response:', responseText);
-      
-      let errorMessage;
-      try {
-        // Try to parse as JSON if possible
-        const errorData = JSON.parse(responseText);
-        errorMessage = JSON.stringify(errorData);
-      } catch (e) {
-        // If not JSON, use the text directly (truncated)
-        errorMessage = responseText.substring(0, 100) + '...';
-      }
-      
-      throw new Error(`Error ${response.status}: ${errorMessage}`);
-    }
+    const result = await response.json();
 
-    // Parse the successful response
-    const data = await response.json();
-    console.log('Product created successfully:', data);
+    if (!response.ok) {
+      console.error('Server error:', result); // Debug log
+      throw new Error(result.message || result.error || 'Failed to create products');
+    }
 
     revalidatePath('/dashboard');
     return { 
-      success: true, 
-      message: 'Product created successfully', 
-      errors: null,
-      data 
+      success: true,
+      message: 'Products created successfully',
+      data: result,
+      created_count: result.created_count,
+      total_count: result.total_count
     };
   } catch (error) {
-    console.error('Failed to create product:', error);
+    console.error('Failed to create products:', error);
     return {
       success: false,
-      message: `Failed to create product: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      message: error instanceof Error ? error.message : 'Failed to create products',
       errors: {},
       data: null
     };

@@ -188,9 +188,10 @@ export default function EditForm({ product }: { product: Product }) {
               onChange={handleChange}
               className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
             >
-              <option value="0">Normal</option>
-              <option value="1">Category 1</option>
-              <option value="2">Category 2</option>
+              <option value="0"> 0: Normal</option>
+              <option value="1"> 1: 大顆SSD</option>
+              <option value="2"> 2: Ram</option>
+              <option value="3"> 3: 小顆SSD </option>
             </select>
           </div>
         </div>

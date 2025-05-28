@@ -90,7 +90,7 @@ export async function fetchCardData() {
   }
 }
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 100;
 export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
@@ -316,7 +316,6 @@ export async function getProductById(id: string): Promise<Product | null> {
   const url = new URL(`${API_URL}/product/products/`);
   url.searchParams.append("id", id);
   
-  console.log(`Fetching product with ID ${id} from URL: ${url.toString()}`);
   
   try {
     const response = await fetch(url.toString(), {
@@ -341,17 +340,97 @@ export async function getProductById(id: string): Promise<Product | null> {
     }
 
     const data = await response.json();
-    console.log(`Product data received:`, data);
     
     // The API returns a list, so we need to get the first item
     if (data.results && data.results.length > 0) {
       return data.results[0];
     }
     
-    console.log(`No product found with ID ${id}`);
     return null;
   } catch (error) {
     console.error(`Error fetching product with ID ${id}:`, error);
     return null;
+  }
+}
+
+
+export async function getAllProducts(query: string) {
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
+
+    const url = new URL(`${API_URL}/product/products/`);
+    if (query) {
+      url.searchParams.append("search", query);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+
+    const data = await response.json();
+    console.log(data.length);
+    return data.results || [];
+  } catch (error) {
+    console.error("Unexpected error:", error);
+
+  }
+}
+
+export async function getAllProductsForExport(query: string = '') {
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
+
+    const response = await fetch(
+      `${API_URL}/product/export/?search=${query}`,
+      {
+        method: 'GET',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch products for export');
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+export async function getSSDForExport(query: string = '') {
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
+    if (!API_URL) {
+      throw new Error('API URL is not configured');
+    }
+
+    const url = new URL(`${API_URL}/product/export/`);
+    // 如果 query 不是空的，直接附加到 URL
+    if (query) {
+      url.search = query;  // 這會正確處理所有查詢參數
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch products for export');
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
   }
 }
