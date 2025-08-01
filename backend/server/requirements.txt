@@ -1,5 +1,5 @@
 asgiref
-Django
+Django==5.1.6
 django-cors-headers
 djangorestframework
 pytz

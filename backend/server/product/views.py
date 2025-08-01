@@ -1,13 +1,115 @@
+
+from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Product
-from .serializer import ProductSerializer
+from .models import Product, Photo
+from .serializer import ProductSerializer, PhotoSerializer
 from rest_framework import generics
 from django.db.models import Sum, Q, Max, Max
 from rest_framework.pagination import PageNumberPagination
 from django.db import transaction
+from datetime import datetime
 
+# Zebra Scanner API
+@api_view(['POST'])
+def scanner_api(request):
+    """
+    Zebra device product scan API
+    入庫: action=inbound, 傳 date, barcode, so_number, weight, photos
+    出貨: action=outbound, 傳 so_number, photos
+    """
+    action = request.data.get('action')
+    if not action or action not in ['inbound', 'outbound']:
+        return Response({'success': False, 'message': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if action == 'inbound':
+        # 入庫: 建立新產品
+        data = request.data
+        # 只取必要欄位
+        product_data = {
+            'date': data.get('date', ''),
+            'barcode': data.get('barcode', ''),
+            'so_number': data.get('so_number', ''),
+            'weight': data.get('weight', ''),
+            'current_status': '0',
+            'noted': data.get('noted', ''),
+        }
+        serializer = ProductSerializer(data=product_data)
+        if serializer.is_valid():
+            product = serializer.save()
+            # 多張照片
+            photos = request.FILES.getlist('photos')
+            import os
+            images_dir = r'D:\workplace\Images'
+            os.makedirs(images_dir, exist_ok=True)
+            so_number = product_data.get('so_number', 'photo')
+            for idx, img in enumerate(photos, start=1):
+                ext = os.path.splitext(img.name)[1]
+                filename = f"{so_number}_{idx}{ext}"
+                file_path = os.path.join(images_dir, filename)
+                with open(file_path, 'wb+') as destination:
+                    for chunk in img.chunks():
+                        destination.write(chunk)
+                # 僅存檔名到 DB
+                Photo.objects.create(product=product, path=filename)
+            return Response({'success': True, 'product': ProductSerializer(product).data})
+        else:
+            return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif action == 'outbound':
+        # 出貨: 用 so_number 找產品，更新 ex_date 與照片
+        so_number = request.data.get('so_number', '')
+        if not so_number:
+            return Response({'success': False, 'message': 'so_number required'}, status=status.HTTP_400_BAD_REQUEST)
+        product = Product.objects.filter(so_number=so_number).first()
+        if not product:
+            return Response({'success': False, 'message': 'not found'}, status=status.HTTP_404_NOT_FOUND)
+        # 更新 ex_date 為今天
+        today = datetime.now().strftime('%Y-%m-%d')
+        product.ex_date = today
+        product.current_status = '1'
+        product.save()
+        # 多張照片
+        photos = request.FILES.getlist('photos')
+        import os
+        images_dir = r'D:\workplace\Images'
+        os.makedirs(images_dir, exist_ok=True)
+        so_number = product.so_number if hasattr(product, 'so_number') else 'photo'
+        # 取得目前已存在的照片數量
+        exist_count = Photo.objects.filter(product=product, path__startswith=f"{so_number}_").count()
+        for idx, img in enumerate(photos, start=1):
+            ext = os.path.splitext(img.name)[1]
+            filename = f"{so_number}_{exist_count + idx}{ext}"
+            file_path = os.path.join(images_dir, filename)
+            with open(file_path, 'wb+') as destination:
+                for chunk in img.chunks():
+                    destination.write(chunk)
+            # 僅存檔名到 DB
+            Photo.objects.create(product=product, path=filename)
+        return Response({'success': True, 'product': ProductSerializer(product).data})
+
+# 批次更新產品狀態 API
+@api_view(['POST'])
+def batch_update_status(request):
+    """
+    批次更新多個產品的 current_status
+    POST body: {"ids": [1,2,3], "current_status": "0"}
+    """
+    try:
+        data = request.data
+        ids = data.get('ids', [])
+        target_status = data.get('current_status', None)
+        ex_date = data.get('ex_date', None)
+        if not ids or target_status not in ['0', '1']:
+            return Response({'success': False, 'message': 'Invalid ids or status'}, status=status.HTTP_400_BAD_REQUEST)
+        update_fields = {'current_status': target_status}
+        if ex_date:
+            update_fields['ex_date'] = ex_date
+        updated = Product.objects.filter(id__in=ids).update(**update_fields)
+        return Response({'success': True, 'message': f'已更新 {updated} 筆產品狀態', 'updated_count': updated})
+    except Exception as e:
+        return Response({'success': False, 'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class StandardPagination(PageNumberPagination):
     page_size = 100  # Must match ITEMS_PER_PAGE
@@ -77,43 +179,84 @@ class ProductListAPIView(generics.ListAPIView):
             'count': queryset.count(),
         })
 
+    #create-form will go here
     def post(self, request, *args, **kwargs):
         """
         Handles bulk product creation. Accepts a list of products.
+        支援多圖上傳，將每張圖片存入 Photo 並關聯到 Product。
         """
         try:
             with transaction.atomic():
                 products_data = request.data if isinstance(request.data, list) else [request.data]
                 created_products = []
                 errors = []
-              
-                for product_data in products_data:
-                    # Convert qty to integer if it's a string
-                    if 'qty' in product_data and isinstance(product_data['qty'], str):
+
+                for idx, product_data in enumerate(products_data):
+                    # debug log
+                    print(f"[DEBUG] product_data after dict conversion: {product_data}")
+                    # 將 QueryDict 轉成普通 dict，並把所有 value 只取第一個
+                    if hasattr(product_data, 'lists'):
+                        product_data = {k: v[0] if isinstance(v, list) else v for k, v in product_data.lists()}
+                    else:
+                        product_data = dict(product_data)
+                        for k, v in product_data.items():
+                            if isinstance(v, list):
+                                product_data[k] = v[0] if v else ''
+                    # 轉型態
+                    for key in ['so_number', 'weight', 'status', 'note', 'number', 'barcode', 'vender', 'client', 'category']:
+                        val = product_data.get(key, '')
+                        product_data[key] = str(val).strip()
+                    # qty 轉 int
+                    if 'qty' in product_data:
                         try:
                             product_data['qty'] = int(product_data['qty'])
-                        except ValueError:
+                        except Exception:
                             product_data['qty'] = 0
+                    # date 格式
+                    if 'date' in product_data:
+                        product_data['date'] = str(product_data['date']).strip()
+                    # so_number 必填
+                    so_number_val = product_data.get('so_number', '')
+                    if not so_number_val or (isinstance(so_number_val, str) and so_number_val.strip() == ''):
+                        errors.append({
+                            'data': product_data,
+                            'errors': {'so_number': ['This field is required.']}
+                        })
+                        continue
+
+                    # 優先用 current_status/noted，若沒有才用 status/note
+                    if 'current_status' not in product_data and 'status' in product_data:
+                        product_data['current_status'] = product_data.pop('status')
+                    if 'noted' not in product_data and 'note' in product_data:
+                        product_data['noted'] = product_data.pop('note')
+                    # 保證 current_status/noted 欄位存在
+                    if 'current_status' not in product_data:
+                        product_data['current_status'] = ''
+                    if 'noted' not in product_data:
+                        product_data['noted'] = ''
 
                     serializer = ProductSerializer(data=product_data)
                     if serializer.is_valid():
                         try:
                             product = serializer.save()
-                            created_products.append(serializer.data)
+                            # 僅於單一產品時處理多圖
+                            if len(products_data) == 1:
+                                product_files = request.FILES.getlist('photos')
+                                for img in product_files:
+                                    Photo.objects.create(product=product, path=img)
+                            created_products.append(ProductSerializer(product).data)
                         except Exception as e:
                             errors.append({
                                 'data': product_data,
                                 'error': str(e)
                             })
                     else:
-                        print("Validation errors:", serializer.errors)  # Debug log
                         errors.append({
                             'data': product_data,
                             'errors': serializer.errors
                         })
 
                 if errors and not created_products:
-                    # If no products were created successfully, roll back and return error
                     raise Exception(f"Failed to create any products: {errors}")
 
                 response_data = {
@@ -135,7 +278,6 @@ class ProductListAPIView(generics.ListAPIView):
                 return Response(response_data, status=status_code)
 
         except Exception as e:
-            print("Exception occurred:", str(e))  # Debug log
             return Response(
                 {
                     'success': False,
@@ -160,9 +302,16 @@ class ProductListAPIView(generics.ListAPIView):
         try:
             # Get the product instance
             product = Product.objects.get(pk=product_id)
-            
+
+            # 處理 status/note 別名
+            data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+            if 'status' in data:
+                data['current_status'] = data.pop('status')
+            if 'note' in data:
+                data['noted'] = data.pop('note')
+
             # Update the product with new data
-            serializer = ProductSerializer(product, data=request.data, partial=True)
+            serializer = ProductSerializer(product, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_200_OK)
@@ -179,25 +328,7 @@ class ProductListAPIView(generics.ListAPIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
-
-# @api_view(['GET'])
-# def get_products(request):
-#     Products = Product.objects.all()
-#     serializedData = ProductSerializer(Products, many=True).data
-#     return Response(serializedData)
-
-
-# @api_view(['POST'])
-# def create_product(request):
-#     data = request.data
-#     serializer = ProductSerializer(data=data)
-#     if serializer.is_valid():
-#         serializer.save()  # save the data to the database
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
+#edit-from will go here
 @api_view(['PUT', 'DELETE'])
 def product_detail(request, pk):
     try:
@@ -206,14 +337,50 @@ def product_detail(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'DELETE':
+        # 先刪除所有關聯照片（包含檔案）
+        photos = Photo.objects.filter(product=product)
+        for photo in photos:
+            if photo.path:
+                photo.path.delete(save=False)  # 刪除Local實體檔案
+            photo.delete()  # 刪除資料庫紀錄
         product.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     elif request.method == 'PUT':
-        data = request.data
-        serializer = ProductSerializer(product, data=data)
+        # 1. 先處理圖片刪除
+        delete_photo_ids = []
+        if hasattr(request.data, 'getlist'):
+            delete_photo_ids = request.data.getlist('delete_photo_ids')
+        elif 'delete_photo_ids' in request.data:
+            val = request.data.get('delete_photo_ids')
+            if isinstance(val, list):
+                delete_photo_ids = val
+            elif isinstance(val, str):
+                if ',' in val:
+                    delete_photo_ids = val.split(',')
+                elif val.strip():
+                    delete_photo_ids = [val.strip()]
+        delete_photo_ids = [int(pid) for pid in delete_photo_ids if str(pid).strip()]
+        for pid in delete_photo_ids:
+            photo = Photo.objects.filter(id=pid, product=product).first()
+            if photo:
+                photo.path.delete(save=False)  # 刪除實體檔案
+                photo.delete()                 # 刪除資料庫紀錄
+
+        # 2. 新增新圖片
+        new_files = request.FILES.getlist('photos')
+        for img in new_files:
+            Photo.objects.create(product=product, path=img)
+
+        # 3. 更新產品本身欄位
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        if 'status' in data:
+            data['current_status'] = data.pop('status')
+        if 'note' in data:
+            data['noted'] = data.pop('note')
+        serializer = ProductSerializer(product, data=data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(ProductSerializer(product).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

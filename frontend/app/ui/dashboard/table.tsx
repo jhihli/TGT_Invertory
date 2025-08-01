@@ -105,11 +105,15 @@ export default function ProductsTable({
   const prevSelectedRowsRef = useRef<string[]>([]);
   const [sortField, setSortField] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteDialogContent, setNoteDialogContent] = useState<string>('');
+  // 新增照片 Dialog 狀態
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [photoDialogPhotos, setPhotoDialogPhotos] = useState<string[]>([]);
 
   // Fetch initial products and total pages
   useEffect(() => {
     const fetchInitialData = async () => {
-     
       try {
         const [fetchedProducts, total] = await Promise.all([
           getProducts(query, currentPage),
@@ -117,11 +121,28 @@ export default function ProductsTable({
         ]);
         setProducts(fetchedProducts);
         setTotalPages(total);
+        // --- 快取所有產品到 localStorage，key 為 string，且每個 product 必有 current_status ---
+        if (Array.isArray(fetchedProducts)) {
+          const map: Record<string, any> = {};
+          fetchedProducts.forEach((prod) => {
+            // 若 current_status 缺失，預設為 '0'（可依實際需求調整）
+            map[String(prod.id)] = {
+              ...prod,
+              current_status: prod.current_status !== undefined && prod.current_status !== null ? prod.current_status : '0',
+            };
+          });
+          try {
+            localStorage.setItem('allProductsMap', JSON.stringify(map));
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[ProductsTable] Failed to cache allProductsMap:', e);
+          }
+        }
+        // -------------------------------------------------------------
       } catch (error) {
         console.error('Failed to fetch initial data:', error);
-      } 
+      }
     };
-
     fetchInitialData();
   }, [query, currentPage]); // Re-fetch when query or currentPage changes
 
@@ -184,7 +205,6 @@ export default function ProductsTable({
   // Refresh products after deletion (via selectedItemsChanged event)
   useEffect(() => {
     const handleDeletionRefresh = async () => {
-  
       try {
         const [fetchedProducts, total] = await Promise.all([
           getProducts(query, currentPage),
@@ -192,18 +212,32 @@ export default function ProductsTable({
         ]);
         setProducts(fetchedProducts);
         setTotalPages(total);
+        // --- 快取所有產品到 localStorage，key 為 string，且每個 product 必有 current_status ---
+        if (Array.isArray(fetchedProducts)) {
+          const map: Record<string, any> = {};
+          fetchedProducts.forEach((prod) => {
+            map[String(prod.id)] = {
+              ...prod,
+              current_status: prod.current_status !== undefined && prod.current_status !== null ? prod.current_status : '0',
+            };
+          });
+          try {
+            localStorage.setItem('allProductsMap', JSON.stringify(map));
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[ProductsTable] Failed to cache allProductsMap:', e);
+          }
+        }
+        // -------------------------------------------------------------
       } catch (error) {
         console.error('Failed to refresh products after deletion:', error);
-      } 
+      }
     };
-
     const handleSelectedItemsChanged = () => {
       handleDeletionRefresh();
     };
-
     // Listen for selectedItemsChanged event from DeleteButton
     window.addEventListener('selectedItemsChanged', handleSelectedItemsChanged);
-
     return () => {
       window.removeEventListener('selectedItemsChanged', handleSelectedItemsChanged);
     };
@@ -255,10 +289,29 @@ export default function ProductsTable({
 
   // Handle sorting
   const handleSort = async (field: string) => {
-    const newSortOrder = field === sortField && sortOrder === 'asc' ? 'desc' : 'asc';
+    let newSortOrder: 'asc' | 'desc' = 'asc';
+    // Status 欄位特別處理，讓 "入庫"(1) 在前面
+    if (field === 'current_status') {
+      newSortOrder = sortField === field && sortOrder === 'asc' ? 'desc' : 'asc';
+      setSortField(field);
+      setSortOrder(newSortOrder);
+      try {
+        // 讓 current_status=1(入庫) 在 asc 時排最前面
+        const sortedProducts = [...products].sort((a, b) => {
+          const aVal = a.current_status === '1' ? 0 : 1;
+          const bVal = b.current_status === '1' ? 0 : 1;
+          return newSortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        setProducts(sortedProducts);
+      } catch (error) {
+        console.error('Failed to sort products:', error);
+      }
+      return;
+    }
+
+    newSortOrder = field === sortField && sortOrder === 'asc' ? 'desc' : 'asc';
     setSortField(field);
     setSortOrder(newSortOrder);
-
     try {
       const sortedProducts = await getProducts(query, currentPage, field, newSortOrder);
       setProducts(sortedProducts);
@@ -297,25 +350,72 @@ export default function ProductsTable({
 
   return (
     <div className="mt-6 flow-root">
+      {/* Note Dialog */}
+      {noteDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative animate-fade-in">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-xl font-bold"
+              onClick={() => setNoteDialogOpen(false)}
+              aria-label="關閉"
+            >
+              ×
+            </button>
+            <div className="text-base font-semibold mb-2 text-gray-800">備註內容</div>
+            <div className="text-sm text-gray-700 whitespace-pre-line break-words max-h-80 overflow-y-auto">
+              {noteDialogContent || '無備註'}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Photo Dialog */}
+      {photoDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-8 relative animate-fade-in">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-xl font-bold"
+              onClick={() => setPhotoDialogOpen(false)}
+              aria-label="關閉"
+            >
+              ×
+            </button>
+            <div className="text-base font-semibold mb-4 text-gray-800">產品照片</div>
+            {photoDialogPhotos.length === 0 ? (
+              <div className="text-gray-500 text-center">無照片</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-h-[60vh] overflow-y-auto">
+                {photoDialogPhotos.map((url, idx) => (
+                  <div key={idx} className="flex flex-col items-center bg-gray-50 rounded-lg shadow p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={`photo-${idx}`}
+                      className="object-contain rounded-lg border border-gray-200 shadow-md max-h-64 max-w-full mb-2"
+                      style={{ width: '100%', height: '260px', background: '#f3f4f6' }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="inline-block min-w-full align-middle">
         <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
           <div className="max-h-[600px] overflow-y-auto">
             <table className="hidden min-w-full text-gray-900 md:table table-fixed">
               <colgroup>
-                <col className="w-[20px]"/>
+                <col className="w-[36px]"/>
+                <col className="w-[120px]"/>
+                <col className="w-[180px]"/>
+                <col className="w-[180px]"/>
+                <col className="w-[180px]"/>
+                <col className="w-[120px]"/>
                 <col className="w-[100px]"/>
-                <col className="w-[150px]"/>
-                <col className="w-[150px]"/>
-                <col className="w-[100px]"/>
-                <col className="w-[150px]"/>
-                <col className="w-[150px]"/>
-                <col className="w-[150px]"/>
-                <col className="w-[150px]"/>
-                <col className="w-[80px]"/>
               </colgroup>
-              <thead className="rounded-lg text-left text-sm font-medium sticky top-0 bg-white z-10 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-px after:bg-gray-200">
+              <thead className="rounded-lg text-left text-base font-semibold sticky top-0 bg-white z-10 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-px after:bg-gray-200">
                 <tr>
-                  <th scope="col" className="px-0 py-4">
+                  <th scope="col" className="px-2 py-5">
                     <div className="flex items-center justify-center">
                       <div className="relative w-5 h-5 flex items-center justify-center">
                         <input
@@ -323,13 +423,14 @@ export default function ProductsTable({
                           className="peer h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 transition-all duration-200"
                           checked={selectAll}
                           onChange={handleSelectAll}
+                          style={{ boxShadow: '0 1px 3px 0 #e5e7eb' }}
                         />
                       </div>
                     </div>
                   </th>
                   <th 
                     scope="col" 
-                    className="px-4 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
                     onClick={() => handleSort('id')}
                   >
                     <div className="flex items-center">
@@ -339,9 +440,17 @@ export default function ProductsTable({
                       </div>
                   </div>
                   </th>
+                  <th scope="col" className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap" onClick={() => handleSort('so_number')}>
+                    <div className="flex items-center">
+                      <span className="text-gray-700">SO Number</span>
+                      <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {renderSortIcon('so_number')}
+                </div>
+                  </div>
+                  </th>
                   <th 
                     scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
                     onClick={() => handleSort('number')}
                   >
                     <div className="flex items-center">
@@ -353,7 +462,7 @@ export default function ProductsTable({
                   </th>
                   <th 
                     scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
                     onClick={() => handleSort('barcode')}
                   >
                     <div className="flex items-center">
@@ -365,7 +474,7 @@ export default function ProductsTable({
                   </th>
                   <th 
                     scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
                     onClick={() => handleSort('qty')}
                   >
                     <div className="flex items-center">
@@ -377,7 +486,19 @@ export default function ProductsTable({
                 </th>
                   <th 
                     scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
+                    onClick={() => handleSort('weight')}
+                  >
+                    <div className="flex items-center">
+                      <span className="text-gray-700">Weight</span>
+                      <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {renderSortIcon('weight')}
+                </div>
+              </div>
+                </th>
+                  <th 
+                    scope="col" 
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
                     onClick={() => handleSort('date')}
                   >
                     <div className="flex items-center">
@@ -389,60 +510,58 @@ export default function ProductsTable({
                 </th>
                   <th 
                     scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
-                    onClick={() => handleSort('vender')}
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
+                    onClick={() => handleSort('ex_date')}
                   >
                     <div className="flex items-center">
-                      <span className="text-gray-700">Vendor</span>
+                      <span className="text-gray-700">Ship Date</span>
                       <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {renderSortIcon('vender')}
+                        {renderSortIcon('ex_date')}
                       </div>
                     </div>
                 </th>
                   <th 
                     scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
-                    onClick={() => handleSort('client')}
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
+                    onClick={() => handleSort('current_status')}
                   >
                     <div className="flex items-center">
-                      <span className="text-gray-700">Client</span>
+                      <span className="text-gray-700">Status</span>
                       <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {renderSortIcon('client')}
+                        {renderSortIcon('current_status')}
                       </div>
                     </div>
-                </th>
-                  <th 
-                    scope="col" 
-                    className="px-3 py-4 font-medium cursor-pointer transition-colors hover:bg-gray-50 group"
-                    onClick={() => handleSort('category')}
-                  >
+                  </th>
+                  {/* 新增照片欄位 */}
+                  <th scope="col" className="px-4 py-5 font-semibold whitespace-nowrap">
                     <div className="flex items-center">
-                      <span className="text-gray-700">Category</span>
-                      <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {renderSortIcon('category')}
-                      </div>
+                      <span className="text-gray-700">Photo</span>
                     </div>
-                </th>
-                  <th scope="col" className="px-3 py-4 font-medium">
-                    Actions
-                </th>
-              </tr>
-            </thead>
-              <tbody className="divide-y divide-gray-100">
-              {products?.map((product) => (
-                <tr
+                  </th>
+                  <th scope="col" className="px-4 py-5 font-semibold whitespace-nowrap">
+                    <div className="flex items-center">
+                      <span className="text-gray-700">Note</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-[15px]">
+              {products?.map((product) => {
+                // 移除原本 showNote state，改用 Dialog 控制
+                return (
+                  <tr
                     key={String(product.id)}
-                    className="group relative transition-colors hover:bg-gray-50 cursor-pointer"
+                    className="group relative transition-colors hover:bg-blue-50 cursor-pointer"
+                    style={{ height: '60px' }}
                     onClick={(e) => {
-                      // 防止點擊 checkbox 或編輯按鈕時觸發導航
                       const target = e.target as HTMLElement;
-                      if (target.closest('input[type="checkbox"]') || target.closest('a')) {
+                      if (target.closest('input[type="checkbox"]') || target.closest('button[data-note]')) {
                         return;
                       }
                       router.push(`/dashboard/${product.id}/edit`);
                     }}
                   >
-                    <td className="whitespace-nowrap px-0 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td className="whitespace-nowrap px-2 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center">
                         <div className="relative w-5 h-5 flex items-center justify-center">
                           <input
@@ -450,62 +569,85 @@ export default function ProductsTable({
                             className="peer h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 transition-all duration-200"
                             checked={selectedRows.has(String(product.id))}
                             onChange={() => handleSelectRow(product.id)}
+                            style={{ boxShadow: '0 1px 3px 0 #e5e7eb' }}
                           />
                         </div>
                     </div>
                   </td>
-                    <td className="whitespace-nowrap py-4 pl-6 pr-3">
-                      <p className="text-sm font-medium text-gray-900">{product.id}</p>
+                    <td className="whitespace-nowrap py-4 pl-6 pr-3 text-[15px] text-gray-700">
+                      {product.id}
                     </td>
-                    <td className="whitespace-nowrap py-4 pl-6 pr-3">
-                    <div className="flex items-center gap-3">
-                        <p className="text-sm text-gray-700">{product.number}</p>
-                    </div>
-                  </td>
-                    <td className="whitespace-nowrap py-4 pl-6 pr-3">
-                      <p className="text-sm text-gray-700">{product.barcode}</p>
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] font-semibold text-blue-700 bg-blue-50 rounded-lg shadow-sm border border-blue-100">
+                      {product.so_number}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <span className="text-sm font-medium text-gray-900">{product.qty}</span>
+                    <td className="whitespace-nowrap py-4 pl-6 pr-3 text-[15px] text-gray-700">
+                      <div className="flex items-center gap-3">
+                        {product.number}
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <span className="text-sm text-gray-700">{product.date}</span>
+                    <td className="whitespace-nowrap py-4 pl-6 pr-3 text-[15px] text-gray-700">
+                      {product.barcode}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <span className="text-sm text-gray-700">{product.vender}</span>
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
+                      {product.qty}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <span className="text-sm text-gray-700">{product.client}</span>
-                  </td>
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <span className="text-sm text-gray-700">{product.category}</span>
-                  </td>
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <div className="flex justify-center">
-                        <Link
-                          href={`/dashboard/${product.id}/edit`}
-                          className="
-                            inline-flex items-center justify-center
-                            rounded-lg p-2
-                            text-blue-600 
-                            hover:bg-blue-100 hover:text-blue-800
-                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                            transform transition-all duration-200
-                            hover:scale-105
-                            group
-                          "
-                          title="Edit Product"
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
+                      {product.weight}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
+                      {product.date}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
+                      {product.ex_date}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] font-bold rounded-lg shadow-sm border border-green-200"
+                      style={{ color: product.current_status === '0' ? '#15803d' : product.current_status === '1' ? '#b91c1c' : '#0f172a', background: product.current_status === '0' ? '#dcfce7' : product.current_status === '1' ? '#fee2e2' : '#f1f5f9' }}>
+                      {product.current_status === '0' ? '入庫' : product.current_status === '1' ? '出貨' : product.current_status}
+                    </td>
+                    {/* 照片欄位 */}
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-blue-600">
+                      {Array.isArray(product.photos) && product.photos.length > 0 && ((typeof product.photos[0] === 'string' && product.photos[0]) || (typeof product.photos[0] === 'object' && Object.keys(product.photos[0]).length > 0)) ? (
+                        <button
+                          data-photo
+                          className="underline hover:text-blue-800 focus:outline-none px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                          onClick={e => {
+                            e.stopPropagation();
+                            let photoUrls: string[] = [];
+                            if (typeof product.photos[0] === 'string') {
+                              photoUrls = product.photos as unknown as string[];
+                            } else if (typeof product.photos[0] === 'object') {
+                              photoUrls = (product.photos as unknown as Record<string, any>[]) 
+                                .map(p => p.url || p.path || p.image || p.src || p.file || '')
+                                .filter((url): url is string => typeof url === 'string' && url.length > 0);
+                            }
+                            setPhotoDialogPhotos(photoUrls);
+                            setPhotoDialogOpen(true);
+                          }}
                         >
-                          <PencilIcon className="w-5 h-5 transition-colors" />
-                          <span className="ml-1 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                            Edit
-                          </span>
-                        </Link>
-                    </div>
+                          Show
+                        </button>
+                      ) : null}
                     </td>
-                </tr>
-              ))}
-            </tbody>
+                    {/* 備註欄位 */}
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-blue-600">
+                      {product.noted && product.noted.trim() !== '' ? (
+                        <button
+                          data-note
+                          className="underline hover:text-blue-800 focus:outline-none px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setNoteDialogContent(product.noted || '');
+                            setNoteDialogOpen(true);
+                          }}
+                        >
+                          Show
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+              </tbody>
           </table>
           </div>
         </div>

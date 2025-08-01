@@ -1,12 +1,24 @@
 export interface Product {
     id: bigint | string;
     number: string;
+    so_number: string;
     barcode: string;
     qty: number;
     date: string;
+    ex_date: string;
     vender: string;
     client: string;
     category: string;
+    weight: number;
+    noted: string;
+    current_status: string;
+    photos?: Photo[]; // 關聯多張圖片
+}
+
+export interface Photo {
+    id: bigint | string;
+    product_id: bigint | string; // 關聯產品ID，欄位名稱與資料庫一致
+    path: string; // 圖片路徑/URL，欄位名稱與資料庫一致
 }
 
 export type User = {

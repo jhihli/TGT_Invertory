@@ -31,6 +31,7 @@ export default function ClientActionBar({
         </div>
         <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
           {/* 主要按鈕保留在介面上 */}
+          
           <DeleteButton />
           <CreateProduct />
           

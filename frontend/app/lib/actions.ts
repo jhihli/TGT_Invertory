@@ -1,4 +1,41 @@
+
 'use server';
+
+// 批次更新產品狀態 update  current_status and ex_date after 出貨
+export async function batchUpdateProductStatus(ids: string[], targetStatus: '0' | '1', ex_date?: string) {
+  try {
+    if (!API_URL) {
+      throw new Error("API URL is not set!");
+    }
+    const body: any = { ids, current_status: targetStatus };
+    if (ex_date) {
+      body.ex_date = ex_date;
+    }
+    const response = await fetch(`${API_URL}/product/batch_update_status/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || result.error || 'Failed to update status');
+    }
+    revalidatePath('/dashboard');
+    return {
+      success: true,
+      message: result.message || 'Status updated successfully',
+      data: result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update status',
+      data: null,
+    };
+  }
+}
 
 import { z } from 'zod';
 //import { sql } from '@vercel/postgres';
@@ -47,46 +84,69 @@ export async function createProduct(formData: FormData | Array<any>) {
       throw new Error("API URL is not set!");
     }
 
-    const productsData = formData instanceof FormData 
-      ? [{
-          number: formData.get('number') || '',
-          barcode: formData.get('barcode') || '',
-          qty: parseInt(formData.get('qty') as string) || 0,
-          date: formData.get('date'),
-          vender: formData.get('vender') || '',
-          client: formData.get('client') || '',
-          category: formData.get('category') || '0'
-        }]
-      : formData.map(prod => ({
-          ...prod,
-          qty: parseInt(prod.qty) || 0
-        }));
-
-    //console.log('Sending data:', productsData); // Debug log
-
-    const response = await fetch(`${API_URL}/product/products/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(productsData),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('Server error:', result); // Debug log
-      throw new Error(result.message || result.error || 'Failed to create products');
+    // 如果是 FormData（含檔案），直接傳送 multipart/form-data
+    if (typeof FormData !== 'undefined' && formData instanceof FormData) {
+      // Debug: 檢查 FormData 內容
+      for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+          console.log('Sending FormData file:', pair[0], pair[1].name, pair[1].type, pair[1].size);
+        } else {
+          console.log('Sending FormData field:', pair[0], pair[1]);
+        }
+      }
+      const response = await fetch(`${API_URL}/product/products/`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        console.error('Server error:', result);
+        throw new Error(result.message || result.error || 'Failed to create products');
+      }
+      revalidatePath('/dashboard');
+      return {
+        success: true,
+        message: 'Products created successfully',
+        data: result,
+        created_count: result.created_count,
+        total_count: result.total_count
+      };
     }
 
-    revalidatePath('/dashboard');
-    return { 
-      success: true,
-      message: 'Products created successfully',
-      data: result,
-      created_count: result.created_count,
-      total_count: result.total_count
-    };
+    // 否則用 JSON 傳送（不含檔案）
+    if (Array.isArray(formData)) {
+      const productsData = formData.map(prod => ({
+        ...prod,
+        qty: parseInt(prod.qty) || 0,
+        so_number: prod.so_number || '',
+        weight: prod.weight || '',
+        current_status: prod.current_status || '',
+        noted: prod.noted || ''
+      }));
+      const response = await fetch(`${API_URL}/product/products/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(productsData),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        console.error('Server error:', result);
+        throw new Error(result.message || result.error || 'Failed to create products');
+      }
+      revalidatePath('/dashboard');
+      return {
+        success: true,
+        message: 'Products created successfully',
+        data: result,
+        created_count: result.created_count,
+        total_count: result.total_count
+      };
+    }
+    // 若不是 FormData 也不是 Array，回傳錯誤
+    throw new Error('Invalid formData type for createProduct');
   } catch (error) {
     console.error('Failed to create products:', error);
     return {
@@ -142,7 +202,7 @@ export async function deleteProducts(ids: string[]) {
   }
 }
 
-export async function updateProduct(id: string, formData: { 
+export async function updateProduct(id: string, formData: FormData | { 
   number: string; 
   barcode: string; 
   qty: string | number; 
@@ -155,16 +215,29 @@ export async function updateProduct(id: string, formData: {
     if (!API_URL) {
       throw new Error("API URL is not set!");
     }
-
     const url = `${API_URL}/product/products/${id}/`;
-    console.log('Sending PUT request to:', url);
-
-    // Ensure qty is sent as a number
+    // 若為 FormData（含檔案），直接傳送 multipart/form-data
+    if (typeof FormData !== 'undefined' && formData instanceof FormData) {
+      const response = await fetch(url, {
+        method: 'PUT',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.error('Failed to update product. Server response:', responseText);
+        throw new Error(`Failed to update product with ID ${id}: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Product updated successfully:', data);
+      revalidatePath('/dashboard');
+      return { success: true, message: 'Product updated successfully', data };
+    }
+    // 若為物件（JSON）
     const processedData = {
       ...formData,
-      qty: typeof formData.qty === 'string' ? parseInt(formData.qty) : formData.qty
+      qty: typeof (formData as any).qty === 'string' ? parseInt((formData as any).qty) : (formData as any).qty
     };
-
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -172,16 +245,13 @@ export async function updateProduct(id: string, formData: {
       },
       body: JSON.stringify(processedData),
     });
-
     if (!response.ok) {
       const responseText = await response.text();
       console.error('Failed to update product. Server response:', responseText);
       throw new Error(`Failed to update product with ID ${id}: ${response.status}`);
     }
-
     const data = await response.json();
     console.log('Product updated successfully:', data);
-
     revalidatePath('/dashboard');
     return { success: true, message: 'Product updated successfully', data };
   } catch (error) {
