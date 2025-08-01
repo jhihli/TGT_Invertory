@@ -1,0 +1,30 @@
+services:
+  django:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_NAME=djapp
+      - DB_USER=postgres
+      - DB_PASSWORD=1234
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend/server:/app
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: djapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+volumes:
+  postgres_data:
