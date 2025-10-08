@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth.hashers import check_password
+from django.contrib.auth import authenticate
 
 class UserListAPIView(generics.ListAPIView):
     queryset = CustomUser.objects.all()
@@ -25,6 +26,18 @@ class UserListAPIView(generics.ListAPIView):
         if role:
             queryset = queryset.filter(role=role)  # Filter users by role
         return queryset
+    
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        if not username or not password:
+            return Response({'error': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            serializer = CustomUserSerializer(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 def get_users(request):
