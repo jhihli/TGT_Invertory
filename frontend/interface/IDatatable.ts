@@ -1,3 +1,8 @@
+export interface Cargo {
+    id: bigint | string;
+    name: string;
+}
+
 export interface Product {
     id: bigint | string;
     number: string;
@@ -15,6 +20,8 @@ export interface Product {
     photos?: Photo[]; // 關聯多張圖片
     created_by?: bigint | string | null; // User ID who created the product
     created_by_username?: string; // Username of the creator
+    cargo?: bigint | string | null; // Cargo ID
+    cargo_name?: string; // Cargo name
 }
 
 export interface Photo {

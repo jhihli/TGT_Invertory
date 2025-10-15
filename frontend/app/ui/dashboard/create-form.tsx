@@ -1,12 +1,15 @@
 "use client"
 import Link from 'next/link';
 import { Button } from '@/app/ui/button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createProduct } from '@/app/lib/actions';
 import { PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { lusitana } from '@/app/ui/fonts';
 import Dialog from '@/app/ui/dialog';
+import { getCargos } from '@/app/lib/data';
+import { Cargo } from '@/interface/IDatatable';
+import SearchableSelect from '@/app/ui/SearchableSelect';
 
 // 1. 擴充 TempProduct 型別
 interface TempProduct {
@@ -23,6 +26,7 @@ interface TempProduct {
   current_status: string;
   noted: string;
   photos: File[];
+  cargo?: string; // cargo ID
 }
 
 export default function Form() {
@@ -44,13 +48,24 @@ export default function Form() {
   const [current_status, setCurrentStatus] = useState('0'); // current_status 預設為 0
   const [noted, setNoted] = useState('');
   const [soNumberError, setSoNumberError] = useState(''); // 新增
-  
+  const [cargo, setCargo] = useState(''); // 新增 cargo
+  const [cargos, setCargos] = useState<Cargo[]>([]); // 新增 cargos list
+
   // Add state for temporary products
   const [tempProducts, setTempProducts] = useState<TempProduct[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<TempProduct | null>(null);
+
+  // Fetch cargos on component mount
+  useEffect(() => {
+    const fetchCargos = async () => {
+      const data = await getCargos();
+      setCargos(data);
+    };
+    fetchCargos();
+  }, []);
 
   // Handle date change and update URL
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,6 +142,7 @@ export default function Form() {
     setCurrentStatus('0'); // current_status 清空時預設為 0
     setNoted('');
     setSoNumberError('');
+    setCargo(''); // 清空 cargo
     // vender, client, date 保留
   };
 
@@ -159,6 +175,7 @@ export default function Form() {
       current_status,
       noted,
       photos,
+      cargo: cargo || undefined,
     };
 
     // Add to temporary products
@@ -239,6 +256,7 @@ export default function Form() {
           if (product.weight && product.weight.trim() !== '') formData.append('weight', product.weight);
           if (product.current_status && product.current_status.trim() !== '') formData.append('current_status', product.current_status);
           if (product.noted && product.noted.trim() !== '') formData.append('noted', product.noted);
+          if (product.cargo && product.cargo.trim() !== '') formData.append('cargo', product.cargo);
           // 上傳多張照片
           product.photos.forEach((file, i) => {
             formData.append('photos', file);
@@ -549,6 +567,18 @@ export default function Form() {
                 <option value="0">0: 入庫</option>
                 <option value="1">1: 出貨</option>
               </select>
+              </div>
+
+              {/* Cargo */}
+              <div className="mb-0">
+                <SearchableSelect
+                  options={cargos}
+                  value={cargo}
+                  onChange={setCargo}
+                  label="Cargo"
+                  placeholder="-- Select Cargo --"
+                  className="text-xs"
+                />
               </div>
 
               {/* Category */}

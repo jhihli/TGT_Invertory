@@ -8,8 +8,8 @@ export default function Page() {
 
   return (
     <main className="flex min-h-screen flex-col p-6">
-      <div className="flex h-20 shrink-0 items-end rounded-lg bg-blue-500 p-4 md:h-52">
-        <div className="w-32 text-white md:w-40">
+      <div className="flex h-20 shrink-0 items-center justify-start rounded-lg bg-gray-50 p-4 md:h-52">
+        <div className="w-full max-w-sm">
             <AcmeLogo />
         </div>
       </div>

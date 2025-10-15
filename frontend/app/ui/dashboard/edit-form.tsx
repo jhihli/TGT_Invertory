@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProduct } from '@/app/lib/actions';
-import { Product, Photo } from '@/interface/IDatatable';
-import { 
-  ArrowPathIcon, 
-  CheckCircleIcon, 
+import { Product, Photo, Cargo } from '@/interface/IDatatable';
+import { getCargos } from '@/app/lib/data';
+import SearchableSelect from '@/app/ui/SearchableSelect';
+import {
+  ArrowPathIcon,
+  CheckCircleIcon,
   ExclamationCircleIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline';
@@ -28,7 +30,9 @@ export default function EditForm({ product }: { product: Product }) {
     weight: product.weight !== undefined && product.weight !== null && String(product.weight) !== '' ? String(product.weight) : '',
     current_status: product.current_status !== undefined && product.current_status !== null && product.current_status !== '' ? product.current_status : '0',
     noted: product.noted || '',
+    cargo: product.cargo ? String(product.cargo) : '',
   });
+  const [cargos, setCargos] = useState<Cargo[]>([]);
   // 型別修正：Photo 來自 interface/IDatatable，且路徑欄位為 path
   const [existingPhotos, setExistingPhotos] = useState<Photo[]>(product.photos || []);
   const [photosToDelete, setPhotosToDelete] = useState<(number | string)[]>([]);
@@ -36,6 +40,15 @@ export default function EditForm({ product }: { product: Product }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch cargos on component mount
+  useEffect(() => {
+    const fetchCargos = async () => {
+      const data = await getCargos();
+      setCargos(data);
+    };
+    fetchCargos();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -304,6 +317,17 @@ export default function EditForm({ product }: { product: Product }) {
               <option value="1">1: 出貨</option>
             </select>
           </div>
+        </div>
+
+        {/* Cargo Field */}
+        <div className="space-y-2">
+          <SearchableSelect
+            options={cargos}
+            value={formData.cargo}
+            onChange={(value) => setFormData(prev => ({ ...prev, cargo: value }))}
+            label="Cargo"
+            placeholder="-- Select Cargo --"
+          />
         </div>
 
         {/* Noted Field */}

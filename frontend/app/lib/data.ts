@@ -10,7 +10,7 @@ import {
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
-import { Product } from "@/interface/IDatatable"
+import { Product, Cargo } from "@/interface/IDatatable"
 
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
@@ -432,5 +432,34 @@ export async function getSSDForExport(query: string = '') {
   } catch (error) {
     console.error('Error:', error);
     throw error;
+  }
+}
+
+export async function getCargos(): Promise<Cargo[]> {
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
+    if (!API_URL) {
+      console.error('API URL is not configured');
+      return [];
+    }
+
+    const response = await fetch(`${API_URL}/product/cargos/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch cargos');
+      return [];
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching cargos:', error);
+    return [];
   }
 }

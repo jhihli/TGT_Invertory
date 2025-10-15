@@ -3,8 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Product, Photo
-from .serializer import ProductSerializer, PhotoSerializer
+from .models import Product, Photo, Cargo
+from .serializer import ProductSerializer, PhotoSerializer, CargoSerializer
 from rest_framework import generics
 from django.db.models import Sum, Q, Max, Max
 from rest_framework.pagination import PageNumberPagination
@@ -466,3 +466,22 @@ def get_all_products_for_export(request):
     
     serializer = ProductSerializer(queryset, many=True)
     return Response(serializer.data)
+
+
+# Cargo API endpoints
+@api_view(['GET', 'POST'])
+def cargo_list(request):
+    """
+    List all cargos or create a new cargo
+    """
+    if request.method == 'GET':
+        cargos = Cargo.objects.all().order_by('name')
+        serializer = CargoSerializer(cargos, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = CargoSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

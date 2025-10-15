@@ -4,6 +4,16 @@ from django.conf import settings
 # Create your models here.
 
 
+class Cargo(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        db_table = "cargo"
+
+    def __str__(self):
+        return self.name
+
+
 class Product(models.Model):
     # 移除 id 定義，讓 Django 自動處理
     number = models.CharField(max_length=50, default='', blank=True, null=True)
@@ -25,7 +35,15 @@ class Product(models.Model):
         blank=True,
         related_name='products',
         verbose_name='Created By'
-    ) 
+    )
+    cargo = models.ForeignKey(
+        Cargo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+        verbose_name='Cargo'
+    )
 
     class Meta:
         db_table = "product"

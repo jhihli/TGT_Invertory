@@ -415,6 +415,7 @@ export default function ProductsTable({
                 <col className="w-[100px]"/>
                 <col className="w-[100px]"/>
                 <col className="w-[100px]"/>
+                <col className="w-[120px]"/>
                 <col className="w-[100px]"/>
                 <col className="w-[100px]"/>
                 <col className="w-[100px]"/>
@@ -538,6 +539,19 @@ export default function ProductsTable({
                       </div>
                     </div>
                   </th>
+                  {/* 新增 Cargo 欄位 */}
+                  <th
+                    scope="col"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
+                    onClick={() => handleSort('cargo_name')}
+                  >
+                    <div className="flex items-center">
+                      <span className="text-gray-700">Cargo</span>
+                      <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {renderSortIcon('cargo_name')}
+                      </div>
+                    </div>
+                  </th>
                   {/* 新增使用者欄位 */}
                   <th
                     scope="col"
@@ -623,9 +637,13 @@ export default function ProductsTable({
                       style={{ color: product.current_status === '0' ? '#15803d' : product.current_status === '1' ? '#b91c1c' : '#0f172a', background: product.current_status === '0' ? '#dcfce7' : product.current_status === '1' ? '#fee2e2' : '#f1f5f9' }}>
                       {product.current_status === '0' ? '入庫' : product.current_status === '1' ? '出貨' : product.current_status}
                     </td>
+                    {/* Cargo 欄位 */}
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
+                      {product.cargo_name || '-'}
+                    </td>
                     {/* 使用者欄位 */}
                     <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
-                      {product.created_by_username || 'Unknown'}
+                      {product.created_by_username && product.created_by_username.toLowerCase() !== 'unknown' ? product.created_by_username : ''}
                     </td>
                     {/* 照片欄位 */}
                     <td className="whitespace-nowrap px-4 py-4 text-[15px] text-blue-600">
