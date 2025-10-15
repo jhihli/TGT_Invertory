@@ -20,8 +20,18 @@ def scanner_api(request):
     出貨: action=outbound, 傳 so_number, photos
     """
     action = request.data.get('action')
-    if not action or action not in ['inbound', 'outbound']:
+    if not action:
         return Response({'success': False, 'message': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 新增 find_so_number 查詢
+    if action == 'find_so_number':
+        barcode = request.data.get('barcode', '')
+        if not barcode:
+            return Response({'success': False, 'message': 'barcode required'}, status=status.HTTP_400_BAD_REQUEST)
+        product = Product.objects.filter(barcode=barcode).first()
+        if not product:
+            return Response({'success': False, 'message': 'not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'success': True, 'so_number': product.so_number})
 
     if action == 'inbound':
         # 入庫: 建立新產品
@@ -37,7 +47,24 @@ def scanner_api(request):
         }
         serializer = ProductSerializer(data=product_data)
         if serializer.is_valid():
-            product = serializer.save()
+            # Auto-assign created_by based on username from request
+            created_by_user = None
+            username = data.get('created_by_username')
+
+            if username:
+                from account.models import CustomUser
+                try:
+                    created_by_user = CustomUser.objects.get(username=username)
+                except CustomUser.DoesNotExist:
+                    pass  # User not found, created_by will be None
+            elif request.user and request.user.is_authenticated:
+                created_by_user = request.user
+
+            # Save product with created_by
+            if created_by_user:
+                product = serializer.save(created_by=created_by_user)
+            else:
+                product = serializer.save()
             # 多張照片
             photos = request.FILES.getlist('photos')
             import os
@@ -62,32 +89,37 @@ def scanner_api(request):
         so_number = request.data.get('so_number', '')
         if not so_number:
             return Response({'success': False, 'message': 'so_number required'}, status=status.HTTP_400_BAD_REQUEST)
-        product = Product.objects.filter(so_number=so_number).first()
-        if not product:
+        products = Product.objects.filter(so_number=so_number)
+        if not products.exists():
             return Response({'success': False, 'message': 'not found'}, status=status.HTTP_404_NOT_FOUND)
-        # 更新 ex_date 為今天
+        # 更新所有產品的 ex_date 和 current_status
         today = datetime.now().strftime('%Y-%m-%d')
-        product.ex_date = today
-        product.current_status = '1'
-        product.save()
-        # 多張照片
+        products.update(ex_date=today, current_status='1')
+
+        # 處理照片，只存到最新 date 的產品（若多個同日，取 first）
+        latest_date = products.aggregate(Max('date'))['date__max']
+        target_product = products.filter(date=latest_date).first()
+
         photos = request.FILES.getlist('photos')
         import os
         images_dir = r'D:\workplace\Images'
         os.makedirs(images_dir, exist_ok=True)
-        so_number = product.so_number if hasattr(product, 'so_number') else 'photo'
+        so_number_val = so_number if so_number else 'photo'
         # 取得目前已存在的照片數量
-        exist_count = Photo.objects.filter(product=product, path__startswith=f"{so_number}_").count()
+        exist_count = Photo.objects.filter(product=target_product, path__startswith=f"{so_number_val}_").count() if target_product else 0
         for idx, img in enumerate(photos, start=1):
             ext = os.path.splitext(img.name)[1]
-            filename = f"{so_number}_{exist_count + idx}{ext}"
+            filename = f"{so_number_val}_{exist_count + idx}{ext}"
             file_path = os.path.join(images_dir, filename)
             with open(file_path, 'wb+') as destination:
                 for chunk in img.chunks():
                     destination.write(chunk)
             # 僅存檔名到 DB
-            Photo.objects.create(product=product, path=filename)
-        return Response({'success': True, 'product': ProductSerializer(product).data})
+            if target_product:
+                Photo.objects.create(product=target_product, path=filename)
+
+        # 回傳第一個產品序列化資料
+        return Response({'success': True, 'product': ProductSerializer(products.first()).data})
 
 # 批次更新產品狀態 API
 @api_view(['POST'])
@@ -238,7 +270,24 @@ class ProductListAPIView(generics.ListAPIView):
                     serializer = ProductSerializer(data=product_data)
                     if serializer.is_valid():
                         try:
-                            product = serializer.save()
+                            # Auto-assign created_by based on username from request
+                            created_by_user = None
+                            username = product_data.get('created_by_username') or request.data.get('created_by_username')
+
+                            if username:
+                                from account.models import CustomUser
+                                try:
+                                    created_by_user = CustomUser.objects.get(username=username)
+                                except CustomUser.DoesNotExist:
+                                    pass  # User not found, created_by will be None
+                            elif request.user and request.user.is_authenticated:
+                                created_by_user = request.user
+
+                            # Save product with created_by
+                            if created_by_user:
+                                product = serializer.save(created_by=created_by_user)
+                            else:
+                                product = serializer.save()
                             # 僅於單一產品時處理多圖
                             if len(products_data) == 1:
                                 product_files = request.FILES.getlist('photos')

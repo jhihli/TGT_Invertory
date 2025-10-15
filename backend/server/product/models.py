@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 # Create your models here.
 
 
@@ -16,7 +17,15 @@ class Product(models.Model):
     weight = models.IntegerField(default=0, blank=True, null=True)
     noted = models.TextField(max_length=300, default='', blank=True, null=True)
     current_status = models.CharField(max_length=1, default='0', blank=True, null=True)  # 預設為 0:入庫
-    ex_date = models.DateField(blank=True, null=True) 
+    ex_date = models.DateField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+        verbose_name='Created By'
+    ) 
 
     class Meta:
         db_table = "product"

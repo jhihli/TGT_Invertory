@@ -1,6 +1,9 @@
 
 'use server';
 
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/auth";
+
 // 批次更新產品狀態 update  current_status and ex_date after 出貨
 export async function batchUpdateProductStatus(ids: string[], targetStatus: '0' | '1', ex_date?: string) {
   try {
@@ -84,16 +87,17 @@ export async function createProduct(formData: FormData | Array<any>) {
       throw new Error("API URL is not set!");
     }
 
+    // Get current session to extract username
+    const session = await getServerSession(authOptions);
+    const username = session?.user?.name || null;
+
     // 如果是 FormData（含檔案），直接傳送 multipart/form-data
     if (typeof FormData !== 'undefined' && formData instanceof FormData) {
-      // Debug: 檢查 FormData 內容
-      for (let pair of formData.entries()) {
-        if (pair[1] instanceof File) {
-          console.log('Sending FormData file:', pair[0], pair[1].name, pair[1].type, pair[1].size);
-        } else {
-          console.log('Sending FormData field:', pair[0], pair[1]);
-        }
+      // Add username to FormData if available
+      if (username) {
+        formData.append('created_by_username', username);
       }
+
       const response = await fetch(`${API_URL}/product/products/`, {
         method: 'POST',
         body: formData,
@@ -122,7 +126,8 @@ export async function createProduct(formData: FormData | Array<any>) {
         so_number: prod.so_number || '',
         weight: prod.weight || '',
         current_status: prod.current_status || '',
-        noted: prod.noted || ''
+        noted: prod.noted || '',
+        created_by_username: username || undefined
       }));
       const response = await fetch(`${API_URL}/product/products/`, {
         method: 'POST',

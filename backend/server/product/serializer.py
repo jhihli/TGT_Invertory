@@ -10,6 +10,8 @@ class PhotoSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     photos = PhotoSerializer(many=True, read_only=True)
+    created_by_username = serializers.SerializerMethodField(read_only=True)
+
     number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     vender = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     client = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -21,7 +23,17 @@ class ProductSerializer(serializers.ModelSerializer):
     noted = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     current_status = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     ex_date = serializers.DateField(required=False, allow_null=True)
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
 
     class Meta:
         model = Product
         fields = '__all__'
+
+    def get_created_by_username(self, obj):
+        """
+        Return the username of the user who created this product.
+        Returns 'Unknown' if no user is assigned.
+        """
+        if obj.created_by:
+            return obj.created_by.username
+        return 'Unknown'

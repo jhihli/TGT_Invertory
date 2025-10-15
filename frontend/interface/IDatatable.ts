@@ -13,6 +13,8 @@ export interface Product {
     noted: string;
     current_status: string;
     photos?: Photo[]; // 關聯多張圖片
+    created_by?: bigint | string | null; // User ID who created the product
+    created_by_username?: string; // Username of the creator
 }
 
 export interface Photo {

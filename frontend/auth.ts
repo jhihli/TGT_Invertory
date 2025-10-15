@@ -87,15 +87,14 @@ export const authOptions = {
         async jwt({ token, user }) {
             if (user) {
                 token.role = user.role ?? "user"; // Store role in token, Ensure role is always a string
+                token.name = user.username; // Store username in token as 'name'
             }
-            console.log("🔹 Callback Triggered Token:");
             return token;
         },
         async session({ session, token }) {
-            
-            console.log("🔹 Incoming Token:", token);
             if (session.user) {
                 session.user.role = token.role ?? "user"; // Pass role to session
+                session.user.name = token.name ?? null; // Pass username to session as 'name'
             }
             return session;
         },

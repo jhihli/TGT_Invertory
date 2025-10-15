@@ -406,11 +406,17 @@ export default function ProductsTable({
             <table className="hidden min-w-full text-gray-900 md:table table-fixed">
               <colgroup>
                 <col className="w-[36px]"/>
-                <col className="w-[120px]"/>
-                <col className="w-[180px]"/>
-                <col className="w-[180px]"/>
-                <col className="w-[180px]"/>
-                <col className="w-[120px]"/>
+                <col className="w-[80px]"/>
+                <col className="w-[150px]"/>
+                <col className="w-[150px]"/>
+                <col className="w-[150px]"/>
+                <col className="w-[80px]"/>
+                <col className="w-[80px]"/>
+                <col className="w-[100px]"/>
+                <col className="w-[100px]"/>
+                <col className="w-[100px]"/>
+                <col className="w-[100px]"/>
+                <col className="w-[100px]"/>
                 <col className="w-[100px]"/>
               </colgroup>
               <thead className="rounded-lg text-left text-base font-semibold sticky top-0 bg-white z-10 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-px after:bg-gray-200">
@@ -520,8 +526,8 @@ export default function ProductsTable({
                       </div>
                     </div>
                 </th>
-                  <th 
-                    scope="col" 
+                  <th
+                    scope="col"
                     className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
                     onClick={() => handleSort('current_status')}
                   >
@@ -529,6 +535,19 @@ export default function ProductsTable({
                       <span className="text-gray-700">Status</span>
                       <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         {renderSortIcon('current_status')}
+                      </div>
+                    </div>
+                  </th>
+                  {/* 新增使用者欄位 */}
+                  <th
+                    scope="col"
+                    className="px-4 py-5 font-semibold cursor-pointer transition-colors hover:bg-gray-50 group whitespace-nowrap"
+                    onClick={() => handleSort('created_by_username')}
+                  >
+                    <div className="flex items-center">
+                      <span className="text-gray-700">Username</span>
+                      <div className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {renderSortIcon('created_by_username')}
                       </div>
                     </div>
                   </th>
@@ -603,6 +622,10 @@ export default function ProductsTable({
                     <td className="whitespace-nowrap px-4 py-4 text-[15px] font-bold rounded-lg shadow-sm border border-green-200"
                       style={{ color: product.current_status === '0' ? '#15803d' : product.current_status === '1' ? '#b91c1c' : '#0f172a', background: product.current_status === '0' ? '#dcfce7' : product.current_status === '1' ? '#fee2e2' : '#f1f5f9' }}>
                       {product.current_status === '0' ? '入庫' : product.current_status === '1' ? '出貨' : product.current_status}
+                    </td>
+                    {/* 使用者欄位 */}
+                    <td className="whitespace-nowrap px-4 py-4 text-[15px] text-gray-700">
+                      {product.created_by_username || 'Unknown'}
                     </td>
                     {/* 照片欄位 */}
                     <td className="whitespace-nowrap px-4 py-4 text-[15px] text-blue-600">
