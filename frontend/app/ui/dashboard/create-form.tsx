@@ -36,7 +36,7 @@ export default function Form() {
 
   const [number, setNumber] = useState('');
   const [barcode, setBarcode] = useState('');
-  const [qty, setQty] = useState('0'); // 預設為 '0'
+  const [qty, setQty] = useState(''); // 預設為空
   const [date, setDate] = useState(searchParams.get('query') || '');
   const [vender, setVender] = useState('');
   const [client, setClient] = useState('');
@@ -44,12 +44,14 @@ export default function Form() {
   const [dateError, setDateError] = useState('');
   const [photos, setPhotos] = useState<File[]>([]); // 新增
   const [so_number, setSoNumber] = useState(''); // 新增
-  const [weight, setWeight] = useState('0'); // 預設為 '0'
+  const [weight, setWeight] = useState(''); // 預設為空
   const [current_status, setCurrentStatus] = useState('0'); // current_status 預設為 0
   const [noted, setNoted] = useState('');
   const [soNumberError, setSoNumberError] = useState(''); // 新增
   const [cargo, setCargo] = useState(''); // 新增 cargo
   const [cargos, setCargos] = useState<Cargo[]>([]); // 新增 cargos list
+  const [qtyError, setQtyError] = useState(''); // 新增數量錯誤訊息
+  const [weightError, setWeightError] = useState(''); // 新增重量錯誤訊息
 
   // Add state for temporary products
   const [tempProducts, setTempProducts] = useState<TempProduct[]>([]);
@@ -116,6 +118,67 @@ export default function Form() {
     router.push(`?${params.toString()}`);
   };
 
+  // Handle quantity change with validation
+  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    // Allow empty value
+    if (value === '') {
+      setQty('');
+      setQtyError('');
+      return;
+    }
+
+    // Check if value is a valid number
+    if (!/^\d+$/.test(value)) {
+      setQtyError('Quantity must be a number');
+      return;
+    }
+
+    // Remove leading zeros (e.g., '00222' becomes '222', '00002' becomes '2')
+    const cleanedValue = value.replace(/^0+/, '') || '0';
+
+    setQty(cleanedValue);
+    setQtyError('');
+  };
+
+  // Handle weight change with validation
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    // Allow empty value
+    if (value === '') {
+      setWeight('');
+      setWeightError('');
+      return;
+    }
+
+    // Check if value is a valid number (allow decimals)
+    if (!/^\d+\.?\d*$/.test(value)) {
+      setWeightError('Weight must be a number');
+      return;
+    }
+
+    // Remove leading zeros (e.g., '00222' becomes '222', '00.5' becomes '0.5')
+    let cleanedValue = value;
+
+    // If value starts with zeros followed by a decimal point, keep one zero (e.g., '00.5' -> '0.5')
+    if (/^0+\./.test(value)) {
+      cleanedValue = value.replace(/^0+/, '0');
+    }
+    // If value is all zeros followed by digits, remove leading zeros (e.g., '00222' -> '222')
+    else if (/^0+\d/.test(value)) {
+      cleanedValue = value.replace(/^0+/, '');
+    }
+    // If value is just zeros, keep one zero
+    else if (/^0+$/.test(value)) {
+      cleanedValue = '0';
+    }
+
+    setWeight(cleanedValue);
+    setWeightError('');
+  };
+
   // 處理照片上傳
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -132,18 +195,20 @@ export default function Form() {
 
   // Function to clear form fields
   const clearForm = () => {
-    setNumber('');
+    // setNumber(''); // 保留 - retain previous value
     setBarcode('');
-    setQty('0'); // 清空時預設為 '0'
-    setCategory('0');
+    setQty(''); // 清空為空字串
+    // setCategory('0'); // 保留 - retain previous value
     setPhotos([]); // 清空照片
-    setSoNumber('');
-    setWeight('0'); // 清空時預設為 '0'
-    setCurrentStatus('0'); // current_status 清空時預設為 0
+    // setSoNumber(''); // 保留 - retain previous value
+    setWeight(''); // 清空為空字串
+    // setCurrentStatus('0'); // 保留 - retain previous value
     setNoted('');
     setSoNumberError('');
-    setCargo(''); // 清空 cargo
-    // vender, client, date 保留
+    setQtyError(''); // 清空錯誤訊息
+    setWeightError(''); // 清空錯誤訊息
+    // setCargo(''); // 保留 - retain previous value
+    // vender, client, date, number, category, status, cargo, so_number 保留
   };
 
   // Function to add product to temporary list
@@ -158,6 +223,13 @@ export default function Form() {
     } else {
       setSoNumberError('');
     }
+
+    // Check for validation errors in qty and weight
+    if (qtyError || weightError) {
+      alert('Please fix the validation errors before adding the product');
+      hasError = true;
+    }
+
     if (hasError) return;
 
     // Create a temporary product
@@ -292,11 +364,11 @@ export default function Form() {
   };
 
   return (
-    <div className="max-w-9xl mx-auto">
+    <div className="max-w-full mx-auto">
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 xl:grid-cols-[350px_1fr] gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           {/* Temporary Products List */}
-          <div className="rounded-lg bg-white shadow-md p-2 md:p-3 border border-gray-100 xl:col-span-1 max-w-xs w-full">
+          <div className="rounded-lg bg-white shadow-md p-2 md:p-3 border border-gray-100 xl:col-span-1 w-full">
             <div className="flex items-center justify-between space-x-3 mb-2">
               <div className="flex items-center space-x-2">
                 <div className="bg-blue-100 p-1 rounded-lg">
@@ -324,11 +396,15 @@ export default function Form() {
             ) : (
               <div className="h-[500px] overflow-y-auto rounded border border-gray-200 shadow-inner">
                 <table className="w-full text-xs text-left text-gray-500">
-                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm">
+                  <thead className="text-xs text-gray-600 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm font-medium">
                     <tr>
-                      <th scope="col" className="px-1 py-2 whitespace-nowrap text-center w-8">Actions</th>
-                      <th scope="col" className="px-2 py-2 whitespace-nowrap w-24">Barcode</th>
-                      <th scope="col" className="px-2 py-2 whitespace-nowrap w-40">SO Number</th>
+                      <th scope="col" className="px-1 py-2 whitespace-nowrap text-center w-6">Act</th>
+                      <th scope="col" className="px-2 py-2 whitespace-nowrap">Barcode</th>
+                      <th scope="col" className="px-2 py-2 whitespace-nowrap">SO Number</th>
+                      <th scope="col" className="px-2 py-2 whitespace-nowrap">Number</th>
+                      <th scope="col" className="px-2 py-2 whitespace-nowrap text-center">Qty</th>
+                      <th scope="col" className="px-2 py-2 whitespace-nowrap text-center">Weight</th>
+                      <th scope="col" className="px-2 py-2 whitespace-nowrap">Category</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -388,7 +464,7 @@ export default function Form() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-4 w-full">
               {/* Number */}
               <div className="mb-0">
-                <label htmlFor="number" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="number" className="mb-2 block text-sm font-bold text-gray-700">
                   Number
                 </label>
                 <div className="relative">
@@ -408,7 +484,7 @@ export default function Form() {
 
               {/* so_number */}
               <div className="mb-0">
-                <label htmlFor="so_number" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="so_number" className="mb-2 block text-sm font-bold text-gray-700">
                   SO Number
                   <span className="text-red-500 ml-1">*</span>
                 </label>
@@ -428,7 +504,7 @@ export default function Form() {
 
               {/* Barcode */}
               <div className="mb-0">
-                <label htmlFor="barcode" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="barcode" className="mb-2 block text-sm font-bold text-gray-700">
                   Barcode
                   <span className="text-red-500 ml-1">*</span>
                 </label>
@@ -450,7 +526,7 @@ export default function Form() {
 
               {/* Qty */}
               <div className="mb-0">
-                <label htmlFor="qty" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="qty" className="mb-2 block text-sm font-bold text-gray-700">
                   Quantity
                 </label>
                 <div className="relative">
@@ -458,7 +534,7 @@ export default function Form() {
                     id="qty"
                     name="qty"
                     value={qty}
-                    onChange={(e) => setQty(e.target.value)}
+                    onChange={handleQtyChange}
                     className="peer block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                     placeholder="Enter quantity"
                   />
@@ -466,26 +542,32 @@ export default function Form() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                   </svg>
                 </div>
+                {qtyError && (
+                  <p className="mt-1 text-xs text-red-500">{qtyError}</p>
+                )}
               </div>
 
               {/* weight */}
               <div className="mb-0">
-                <label htmlFor="weight" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="weight" className="mb-2 block text-sm font-bold text-gray-700">
                   Weight
                 </label>
                 <input
                   id="weight"
                   name="weight"
                   value={weight}
-                  onChange={e => setWeight(e.target.value)}
+                  onChange={handleWeightChange}
                   className="block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                   placeholder="Enter weight"
                 />
+                {weightError && (
+                  <p className="mt-1 text-xs text-red-500">{weightError}</p>
+                )}
               </div>
 
               {/* Date (Required) */}
               <div className="mb-0">
-                <label htmlFor="date" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="date" className="mb-2 block text-sm font-bold text-gray-700">
                   Date
                   <span className="text-red-500 ml-1">*</span>
                 </label>
@@ -514,7 +596,7 @@ export default function Form() {
 
               {/* Vendor */}
               <div className="mb-0">
-                <label htmlFor="vender" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="vender" className="mb-2 block text-sm font-bold text-gray-700">
                   Vendor
                 </label>
                 <div className="relative">
@@ -534,7 +616,7 @@ export default function Form() {
 
               {/* Client */}
               <div className="mb-0">
-                <label htmlFor="client" className="mb-2 block text-xs font-medium text-gray-700">
+                <label htmlFor="client" className="mb-2 block text-sm font-bold text-gray-700">
                   Client
                 </label>
                 <div className="relative">
@@ -554,7 +636,7 @@ export default function Form() {
 
               {/* status */}
               <div className="mb-0">
-              <label htmlFor="current_status" className="mb-2 block text-xs font-medium text-gray-700">
+              <label htmlFor="current_status" className="mb-2 block text-sm font-bold text-gray-700">
                 Status
               </label>
               <select
@@ -582,8 +664,8 @@ export default function Form() {
               </div>
 
               {/* Category */}
-              <div className="mb-0 md:col-span-2 xl:col-span-3">
-                <label htmlFor="category" className="mb-2 block text-xs font-medium text-gray-700">
+              <div className="mb-0">
+                <label htmlFor="category" className="mb-2 block text-sm font-bold text-gray-700">
                   Category
                 </label>
                 <div className="relative">
@@ -608,7 +690,7 @@ export default function Form() {
 
               {/* note */}
               <div className="mb-0 md:col-span-2 xl:col-span-3">
-              <label htmlFor="noted" className="mb-2 block text-xs font-medium text-gray-700">
+              <label htmlFor="noted" className="mb-2 block text-sm font-bold text-gray-700">
                 Note
               </label>
               <textarea
@@ -617,13 +699,13 @@ export default function Form() {
                 value={noted}
                 onChange={e => setNoted(e.target.value)}
                 className="block w-full rounded-md border border-gray-300 py-2 px-3 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-y min-h-[40px]"
-                placeholder="Enter note"
+                placeholder=""
               />
               </div>
 
               {/* 新增照片上傳 */}
               <div className="mb-0 md:col-span-2 xl:col-span-3">
-                <label className="mb-2 block text-xs font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-bold text-gray-700">
                   Photos (最多10張)
                 </label>
                 <input
@@ -762,17 +844,30 @@ export default function Form() {
 function ExpandableRow({ product, onRemove, getCategoryName, onDetailClick }: { product: TempProduct, onRemove: (id: string) => void, getCategoryName: (v: string) => string, onDetailClick: (product: TempProduct) => void }) {
   return (
     <tr className="bg-white border-b hover:bg-gray-50 cursor-pointer text-xs h-8" onClick={() => onDetailClick(product)}>
-      <td className="px-1 py-2 text-center w-8" onClick={e => { e.stopPropagation(); onRemove(product.id); }}>
+      <td className="px-1 py-1 text-center w-6" onClick={e => { e.stopPropagation(); onRemove(product.id); }}>
         <button
           type="button"
-          className="p-1 text-red-500 hover:text-red-700 rounded-md hover:bg-red-50 transition-colors text-xs"
+          className="p-0.5 text-red-500 hover:text-red-700 rounded hover:bg-red-50 transition-colors"
           title="Remove product"
         >
           <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </td>
-      <td className="px-2 py-2 max-w-[96px] truncate text-gray-700 font-mono w-24">{product.barcode}</td>
-      <td className="px-2 py-2 max-w-[200px] truncate text-gray-900 font-semibold w-40">{product.so_number}</td>
+      <td className="px-2 py-1 truncate text-gray-700 font-semibold max-w-[100px]">{product.barcode}</td>
+      <td className="px-2 py-1 truncate text-gray-900 font-semibold max-w-[120px]">{product.so_number}</td>
+      <td className="px-2 py-1 truncate text-gray-700 font-semibold max-w-[80px]">{product.number || '-'}</td>
+      <td className="px-2 py-1 text-center text-gray-700 font-semibold">{product.qty || '0'}</td>
+      <td className="px-2 py-1 text-center text-gray-700 font-semibold">{product.weight || '0'}</td>
+      <td className="px-2 py-1 truncate text-gray-700 max-w-[80px]">
+        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+          product.category === '1' ? 'bg-blue-100 text-blue-700' :
+          product.category === '2' ? 'bg-green-100 text-green-700' :
+          product.category === '3' ? 'bg-purple-100 text-purple-700' :
+          'bg-gray-100 text-gray-700'
+        }`}>
+          {getCategoryName(product.category)}
+        </span>
+      </td>
     </tr>
   );
 }

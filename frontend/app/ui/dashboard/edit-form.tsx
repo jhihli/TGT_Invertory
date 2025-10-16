@@ -40,6 +40,8 @@ export default function EditForm({ product }: { product: Product }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [qtyError, setQtyError] = useState(''); // 新增數量錯誤訊息
+  const [weightError, setWeightError] = useState(''); // 新增重量錯誤訊息
 
   // Fetch cargos on component mount
   useEffect(() => {
@@ -53,6 +55,67 @@ export default function EditForm({ product }: { product: Product }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handle quantity change with validation
+  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    // Allow empty value
+    if (value === '') {
+      setFormData((prev) => ({ ...prev, qty: '' }));
+      setQtyError('');
+      return;
+    }
+
+    // Check if value is a valid number
+    if (!/^\d+$/.test(value)) {
+      setQtyError('Quantity must be a number');
+      return;
+    }
+
+    // Remove leading zeros (e.g., '00222' becomes '222', '00002' becomes '2')
+    const cleanedValue = value.replace(/^0+/, '') || '0';
+
+    setFormData((prev) => ({ ...prev, qty: cleanedValue }));
+    setQtyError('');
+  };
+
+  // Handle weight change with validation
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    // Allow empty value
+    if (value === '') {
+      setFormData((prev) => ({ ...prev, weight: '' }));
+      setWeightError('');
+      return;
+    }
+
+    // Check if value is a valid number (allow decimals)
+    if (!/^\d+\.?\d*$/.test(value)) {
+      setWeightError('Weight must be a number');
+      return;
+    }
+
+    // Remove leading zeros (e.g., '00222' becomes '222', '00.5' becomes '0.5')
+    let cleanedValue = value;
+
+    // If value starts with zeros followed by a decimal point, keep one zero (e.g., '00.5' -> '0.5')
+    if (/^0+\./.test(value)) {
+      cleanedValue = value.replace(/^0+/, '0');
+    }
+    // If value is all zeros followed by digits, remove leading zeros (e.g., '00222' -> '222')
+    else if (/^0+\d/.test(value)) {
+      cleanedValue = value.replace(/^0+/, '');
+    }
+    // If value is just zeros, keep one zero
+    else if (/^0+$/.test(value)) {
+      cleanedValue = '0';
+    }
+
+    setFormData((prev) => ({ ...prev, weight: cleanedValue }));
+    setWeightError('');
   };
 
   // 處理現有圖片刪除
@@ -111,6 +174,13 @@ export default function EditForm({ product }: { product: Product }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check for validation errors
+    if (qtyError || weightError) {
+      setError('Please fix the validation errors before submitting');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -140,7 +210,7 @@ export default function EditForm({ product }: { product: Product }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-700 mb-6 flex items-center">
           <ExclamationCircleIcon className="h-5 w-5 mr-2 text-red-500" />
@@ -148,10 +218,10 @@ export default function EditForm({ product }: { product: Product }) {
         </div>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-3">
         {/* Number Field */}
-        <div className="space-y-2">
-          <label htmlFor="number" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="number" className="block text-base font-bold text-gray-700">
             Number
           </label>
           <div className="relative rounded-md shadow-sm">
@@ -161,15 +231,35 @@ export default function EditForm({ product }: { product: Product }) {
               type="text"
               value={formData.number}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               placeholder="Product number"
             />
           </div>
         </div>
 
+        {/* SO Number Field */}
+        <div className="space-y-1">
+          <label htmlFor="so_number" className="block text-base font-bold text-gray-700">
+            SO Number
+            <span className="text-red-500 ml-1">*</span>
+          </label>
+          <div className="relative rounded-md shadow-sm">
+            <input
+              id="so_number"
+              name="so_number"
+              type="text"
+              value={formData.so_number}
+              onChange={handleChange}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              placeholder="SO number"
+              required
+            />
+          </div>
+        </div>
+
         {/* Barcode Field */}
-        <div className="space-y-2">
-          <label htmlFor="barcode" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="barcode" className="block text-base font-bold text-gray-700">
             Barcode
             <span className="text-red-500 ml-1">*</span>
           </label>
@@ -180,7 +270,7 @@ export default function EditForm({ product }: { product: Product }) {
               type="text"
               value={formData.barcode}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               placeholder="Product barcode"
               required
             />
@@ -188,26 +278,29 @@ export default function EditForm({ product }: { product: Product }) {
         </div>
 
         {/* Quantity Field */}
-        <div className="space-y-2">
-          <label htmlFor="qty" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="qty" className="block text-base font-bold text-gray-700">
             Quantity
           </label>
           <div className="relative rounded-md shadow-sm">
             <input
               id="qty"
               name="qty"
-              type="number"
+              type="text"
               value={formData.qty}
-              onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              onChange={handleQtyChange}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               placeholder="Product quantity"
             />
           </div>
+          {qtyError && (
+            <p className="mt-1 text-xs text-red-500">{qtyError}</p>
+          )}
         </div>
 
         {/* Date Field */}
-        <div className="space-y-2">
-          <label htmlFor="date" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="date" className="block text-base font-bold text-gray-700">
             Date
             <span className="text-red-500 ml-1">*</span>
           </label>
@@ -218,15 +311,15 @@ export default function EditForm({ product }: { product: Product }) {
               type="date"
               value={formData.date}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               required
             />
           </div>
         </div>
 
         {/* Vendor Field */}
-        <div className="space-y-2">
-          <label htmlFor="vender" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="vender" className="block text-base font-bold text-gray-700">
             Vendor
           </label>
           <div className="relative rounded-md shadow-sm">
@@ -236,15 +329,15 @@ export default function EditForm({ product }: { product: Product }) {
               type="text"
               value={formData.vender}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               placeholder="Product vendor"
             />
           </div>
         </div>
 
         {/* Client Field */}
-        <div className="space-y-2">
-          <label htmlFor="client" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="client" className="block text-base font-bold text-gray-700">
             Client
           </label>
           <div className="relative rounded-md shadow-sm">
@@ -254,15 +347,15 @@ export default function EditForm({ product }: { product: Product }) {
               type="text"
               value={formData.client}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               placeholder="Product client"
             />
           </div>
         </div>
 
         {/* Category Field */}
-        <div className="space-y-2">
-          <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="category" className="block text-base font-bold text-gray-700">
             Category
           </label>
           <div className="relative rounded-md shadow-sm">
@@ -271,7 +364,7 @@ export default function EditForm({ product }: { product: Product }) {
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
             >
               <option value="0"> 0: Normal</option>
               <option value="1"> 1: 大顆SSD</option>
@@ -282,26 +375,29 @@ export default function EditForm({ product }: { product: Product }) {
         </div>
 
         {/* Weight Field */}
-        <div className="space-y-2">
-          <label htmlFor="weight" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="weight" className="block text-base font-bold text-gray-700">
             Weight
           </label>
           <div className="relative rounded-md shadow-sm">
             <input
               id="weight"
               name="weight"
-              type="number"
+              type="text"
               value={formData.weight}
-              onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              onChange={handleWeightChange}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               placeholder="Product weight"
             />
           </div>
+          {weightError && (
+            <p className="mt-1 text-xs text-red-500">{weightError}</p>
+          )}
         </div>
 
         {/* Current Status Field */}
-        <div className="space-y-2">
-          <label htmlFor="current_status" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label htmlFor="current_status" className="block text-base font-bold text-gray-700">
             Current Status
           </label>
           <div className="relative rounded-md shadow-sm">
@@ -310,7 +406,7 @@ export default function EditForm({ product }: { product: Product }) {
               name="current_status"
               value={formData.current_status}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
             >
               <option value="">請選擇</option>
               <option value="0">0: 入庫</option>
@@ -320,7 +416,7 @@ export default function EditForm({ product }: { product: Product }) {
         </div>
 
         {/* Cargo Field */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <SearchableSelect
             options={cargos}
             value={formData.cargo}
@@ -331,9 +427,9 @@ export default function EditForm({ product }: { product: Product }) {
         </div>
 
         {/* Noted Field */}
-        <div className="space-y-2">
-          <label htmlFor="noted" className="block text-sm font-medium text-gray-700">
-            Noted
+        <div className="space-y-1 md:col-span-1 xl:col-span-1">
+          <label htmlFor="noted" className="block text-base font-bold text-gray-700">
+            Note
           </label>
           <div className="relative rounded-md shadow-sm">
             <textarea
@@ -341,16 +437,24 @@ export default function EditForm({ product }: { product: Product }) {
               name="noted"
               value={formData.noted}
               onChange={handleChange}
-              className="block w-full rounded-md border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors min-h-[120px] text-base"
-              placeholder="Product noted"
-              rows={5}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors min-h-[80px] text-base"
+              placeholder=""
+              rows={3}
             />
           </div>
         </div>
 
         {/* 圖片編輯區 */}
-        <div className="md:col-span-2 space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Photos (最多10張)</label>
+        <div className="space-y-1 md:col-span-1 xl:col-span-2">
+          <div className="flex items-center gap-4 mb-1">
+            <label className="block text-base font-bold text-gray-700">Photos (最多10張)</label>
+            {/* 上傳新圖片 */}
+            <input
+              ref={fileInputRef}
+              type="file" accept="image/*" multiple onChange={handleNewPhotoChange}
+              disabled={existingPhotos.length + newPhotos.length >= 10}
+              className="w-64 rounded-md border border-gray-300 py-1 px-2 text-sm bg-white file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition" />
+          </div>
           <div className="flex flex-wrap gap-3 mb-2 min-h-[72px]">
             {/* 現有圖片 */}
             {existingPhotos.map(photo => (
@@ -375,40 +479,34 @@ export default function EditForm({ product }: { product: Product }) {
               <div className="flex items-center text-gray-400 text-sm h-16">尚未選擇圖片</div>
             )}
           </div>
-          {/* 上傳新圖片 */}
-          <input
-            ref={fileInputRef}
-            type="file" accept="image/*" multiple onChange={handleNewPhotoChange}
-            disabled={existingPhotos.length + newPhotos.length >= 10}
-            className="block w-full rounded-md border border-gray-300 py-2 px-3 text-base bg-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition" />
           {(existingPhotos.length + newPhotos.length) >= 10 && (
             <p className="text-xs text-red-500 mt-1">最多只能上傳10張圖片</p>
           )}
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200">
+      <div className="flex justify-end gap-4 mt-4 pt-4 border-t border-gray-200">
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex items-center rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
+          className="flex items-center rounded-md bg-white px-6 py-3 text-base font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
         >
-          <XCircleIcon className="h-5 w-5 mr-2 text-gray-500" />
+          <XCircleIcon className="h-6 w-6 mr-2 text-gray-500" />
           Cancel
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-blue-300 transition-colors"
+          className="flex items-center rounded-md bg-blue-600 px-6 py-3 text-base font-medium text-white hover:bg-blue-500 disabled:bg-blue-300 transition-colors"
         >
           {isSubmitting ? (
             <>
-              <ArrowPathIcon className="h-5 w-5 mr-2 animate-spin" />
+              <ArrowPathIcon className="h-6 w-6 mr-2 animate-spin" />
               Saving...
             </>
           ) : (
             <>
-              <CheckCircleIcon className="h-5 w-5 mr-2" />
+              <CheckCircleIcon className="h-6 w-6 mr-2" />
               Save Changes
             </>
           )}

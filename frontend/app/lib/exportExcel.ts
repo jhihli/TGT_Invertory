@@ -17,6 +17,8 @@ export const exportToExcel = (products: Product[]) => {
     { header: 'Client', key: 'client' },
     { header: 'Category', key: 'category' },
     { header: 'Status', key: 'current_status' },
+    { header: 'Cargo', key: 'cargo_name' },
+    { header: 'Username', key: 'created_by_username' },
     { header: 'Note', key: 'noted' },
   ];
 
