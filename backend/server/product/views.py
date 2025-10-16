@@ -10,6 +10,118 @@ from django.db.models import Sum, Q, Max, Max
 from rest_framework.pagination import PageNumberPagination
 from django.db import transaction
 from datetime import datetime
+from django.conf import settings
+import os
+import re
+
+# File validation helper functions
+def sanitize_filename(filename):
+    """
+    Sanitize filename to prevent path traversal attacks
+    Removes directory separators and other dangerous characters
+    """
+    # Remove any path components
+    filename = os.path.basename(filename)
+    # Remove any non-alphanumeric characters except dots, hyphens, and underscores
+    filename = re.sub(r'[^\w\s\-\.]', '', filename)
+    # Replace spaces with underscores
+    filename = filename.replace(' ', '_')
+    # Limit filename length
+    name, ext = os.path.splitext(filename)
+    if len(name) > 100:
+        name = name[:100]
+    return name + ext
+
+def validate_file_upload(file):
+    """
+    Validate uploaded file for security
+    Returns tuple: (is_valid, error_message)
+    """
+    if not file:
+        return False, 'No file provided'
+
+    # Get allowed extensions from settings
+    allowed_extensions = os.getenv('ALLOWED_FILE_EXTENSIONS', '.jpg,.jpeg,.png,.gif,.webp').split(',')
+    allowed_extensions = [ext.strip().lower() for ext in allowed_extensions]
+
+    # Check file extension
+    file_ext = os.path.splitext(file.name)[1].lower()
+    if file_ext not in allowed_extensions:
+        return False, f'File type not allowed. Allowed types: {", ".join(allowed_extensions)}'
+
+    # Check file size
+    max_size = int(os.getenv('MAX_UPLOAD_SIZE', '10485760'))  # Default 10MB
+    if file.size > max_size:
+        return False, f'File size exceeds maximum allowed size of {max_size / (1024*1024):.1f}MB'
+
+    # Validate file content (basic check)
+    try:
+        file.seek(0)  # Reset file pointer
+        # Read first few bytes to check file signature
+        header = file.read(12)
+        file.seek(0)  # Reset again for later use
+
+        # Check for common image file signatures
+        image_signatures = {
+            b'\xff\xd8\xff': 'jpg',
+            b'\x89PNG\r\n\x1a\n': 'png',
+            b'GIF87a': 'gif',
+            b'GIF89a': 'gif',
+            b'RIFF': 'webp',  # WebP files start with RIFF
+        }
+
+        is_valid_image = False
+        for signature, img_type in image_signatures.items():
+            if header.startswith(signature):
+                is_valid_image = True
+                break
+
+        if not is_valid_image:
+            return False, 'Invalid image file format'
+
+    except Exception as e:
+        return False, f'Error validating file: {str(e)}'
+
+    return True, None
+
+def save_file_safely(file, so_number, idx):
+    """
+    Safely save uploaded file with validation
+    Returns tuple: (success, filename_or_error)
+    """
+    # Validate file
+    is_valid, error_msg = validate_file_upload(file)
+    if not is_valid:
+        return False, error_msg
+
+    # Sanitize filename
+    original_ext = os.path.splitext(file.name)[1].lower()
+    safe_so_number = re.sub(r'[^\w\-]', '_', str(so_number))
+    filename = f"{safe_so_number}_{idx}{original_ext}"
+
+    # Get media root from settings
+    images_dir = os.getenv('MEDIA_ROOT', r'D:\workplace\Images')
+    os.makedirs(images_dir, exist_ok=True)
+
+    file_path = os.path.join(images_dir, filename)
+
+    # Check if file already exists and generate unique name if needed
+    counter = 1
+    base_filename = filename
+    while os.path.exists(file_path):
+        name, ext = os.path.splitext(base_filename)
+        filename = f"{name}_{counter}{ext}"
+        file_path = os.path.join(images_dir, filename)
+        counter += 1
+
+    try:
+        # Save file securely
+        with open(file_path, 'wb') as destination:
+            for chunk in file.chunks():
+                destination.write(chunk)
+        return True, filename
+    except Exception as e:
+        return False, f'Error saving file: {str(e)}'
 
 # Zebra Scanner API
 @api_view(['POST'])
@@ -65,22 +177,26 @@ def scanner_api(request):
                 product = serializer.save(created_by=created_by_user)
             else:
                 product = serializer.save()
-            # 多張照片
+
+            # Handle photo uploads with validation
             photos = request.FILES.getlist('photos')
-            import os
-            images_dir = r'D:\workplace\Images'
-            os.makedirs(images_dir, exist_ok=True)
             so_number = product_data.get('so_number', 'photo')
+            failed_uploads = []
+
             for idx, img in enumerate(photos, start=1):
-                ext = os.path.splitext(img.name)[1]
-                filename = f"{so_number}_{idx}{ext}"
-                file_path = os.path.join(images_dir, filename)
-                with open(file_path, 'wb+') as destination:
-                    for chunk in img.chunks():
-                        destination.write(chunk)
-                # 僅存檔名到 DB
-                Photo.objects.create(product=product, path=filename)
-            return Response({'success': True, 'product': ProductSerializer(product).data})
+                success, result = save_file_safely(img, so_number, idx)
+                if success:
+                    # Save filename to database
+                    Photo.objects.create(product=product, path=result)
+                else:
+                    failed_uploads.append({'file': img.name, 'error': result})
+
+            response_data = {'success': True, 'product': ProductSerializer(product).data}
+            if failed_uploads:
+                response_data['warning'] = f'{len(failed_uploads)} file(s) failed to upload'
+                response_data['failed_uploads'] = failed_uploads
+
+            return Response(response_data)
         else:
             return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -100,26 +216,29 @@ def scanner_api(request):
         latest_date = products.aggregate(Max('date'))['date__max']
         target_product = products.filter(date=latest_date).first()
 
+        # Handle photo uploads with validation
         photos = request.FILES.getlist('photos')
-        import os
-        images_dir = r'D:\workplace\Images'
-        os.makedirs(images_dir, exist_ok=True)
         so_number_val = so_number if so_number else 'photo'
         # 取得目前已存在的照片數量
         exist_count = Photo.objects.filter(product=target_product, path__startswith=f"{so_number_val}_").count() if target_product else 0
-        for idx, img in enumerate(photos, start=1):
-            ext = os.path.splitext(img.name)[1]
-            filename = f"{so_number_val}_{exist_count + idx}{ext}"
-            file_path = os.path.join(images_dir, filename)
-            with open(file_path, 'wb+') as destination:
-                for chunk in img.chunks():
-                    destination.write(chunk)
-            # 僅存檔名到 DB
-            if target_product:
-                Photo.objects.create(product=target_product, path=filename)
+        failed_uploads = []
 
-        # 回傳第一個產品序列化資料
-        return Response({'success': True, 'product': ProductSerializer(products.first()).data})
+        for idx, img in enumerate(photos, start=1):
+            success, result = save_file_safely(img, so_number_val, exist_count + idx)
+            if success:
+                # Save filename to database
+                if target_product:
+                    Photo.objects.create(product=target_product, path=result)
+            else:
+                failed_uploads.append({'file': img.name, 'error': result})
+
+        # Build response
+        response_data = {'success': True, 'product': ProductSerializer(products.first()).data}
+        if failed_uploads:
+            response_data['warning'] = f'{len(failed_uploads)} file(s) failed to upload'
+            response_data['failed_uploads'] = failed_uploads
+
+        return Response(response_data)
 
 # 批次更新產品狀態 API
 @api_view(['POST'])
@@ -291,9 +410,23 @@ class ProductListAPIView(generics.ListAPIView):
                             # 僅於單一產品時處理多圖
                             if len(products_data) == 1:
                                 product_files = request.FILES.getlist('photos')
-                                for img in product_files:
-                                    Photo.objects.create(product=product, path=img)
-                            created_products.append(ProductSerializer(product).data)
+                                so_number_val = product_data.get('so_number', 'photo')
+                                failed_uploads = []
+
+                                for idx, img in enumerate(product_files, start=1):
+                                    success, result = save_file_safely(img, so_number_val, idx)
+                                    if success:
+                                        Photo.objects.create(product=product, path=result)
+                                    else:
+                                        failed_uploads.append({'file': img.name, 'error': result})
+
+                                # Include upload warnings in product data if any failed
+                                product_serialized = ProductSerializer(product).data
+                                if failed_uploads:
+                                    product_serialized['upload_warnings'] = failed_uploads
+                                created_products.append(product_serialized)
+                            else:
+                                created_products.append(ProductSerializer(product).data)
                         except Exception as e:
                             errors.append({
                                 'data': product_data,
@@ -415,10 +548,17 @@ def product_detail(request, pk):
                 photo.path.delete(save=False)  # 刪除實體檔案
                 photo.delete()                 # 刪除資料庫紀錄
 
-        # 2. 新增新圖片
+        # 2. 新增新圖片 with validation
         new_files = request.FILES.getlist('photos')
-        for img in new_files:
-            Photo.objects.create(product=product, path=img)
+        so_number_val = product.so_number if product.so_number else 'photo'
+        # Get current photo count for indexing
+        current_photo_count = Photo.objects.filter(product=product).count()
+
+        for idx, img in enumerate(new_files, start=1):
+            success, result = save_file_safely(img, so_number_val, current_photo_count + idx)
+            if success:
+                Photo.objects.create(product=product, path=result)
+            # Note: In edit mode, we silently skip invalid files rather than showing errors
 
         # 3. 更新產品本身欄位
         data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
