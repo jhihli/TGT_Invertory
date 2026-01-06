@@ -2,8 +2,8 @@ asgiref
 Django==5.1.6
 django-cors-headers
 djangorestframework
+djangorestframework-simplejwt
 pytz
 sqlparse
 psycopg2-binary
 python-dotenv
-django-cors-headers

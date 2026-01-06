@@ -1,8 +1,9 @@
 
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Product, Photo, Cargo
 from .serializer import ProductSerializer, PhotoSerializer, CargoSerializer
 from rest_framework import generics
@@ -125,6 +126,7 @@ def save_file_safely(file, so_number, idx):
 
 # Zebra Scanner API
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def scanner_api(request):
     """
     Zebra device product scan API
@@ -242,6 +244,7 @@ def scanner_api(request):
 
 # 批次更新產品狀態 API
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def batch_update_status(request):
     """
     批次更新多個產品的 current_status
@@ -268,7 +271,7 @@ class StandardPagination(PageNumberPagination):
     max_page_size = 100
 # endpoints
 class ProductListAPIView(generics.ListAPIView):
-    
+    permission_classes = [IsAuthenticated]
     serializer_class = ProductSerializer
     pagination_class = StandardPagination
     
@@ -512,6 +515,7 @@ class ProductListAPIView(generics.ListAPIView):
 
 #edit-from will go here
 @api_view(['PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
 def product_detail(request, pk):
     try:
         product = Product.objects.get(pk=pk)
@@ -574,6 +578,7 @@ def product_detail(request, pk):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_all_products_for_export(request):
     """
     獲取符合條件的產品進行匯出
@@ -610,6 +615,7 @@ def get_all_products_for_export(request):
 
 # Cargo API endpoints
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def cargo_list(request):
     """
     List all cargos or create a new cargo
