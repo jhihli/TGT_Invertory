@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
 from .models import Product, Photo, Cargo
 from .serializer import ProductSerializer, PhotoSerializer, CargoSerializer
 from rest_framework import generics
@@ -85,6 +85,18 @@ def validate_file_upload(file):
 
     return True, None
 
+class HasValidAPIKey(BasePermission):
+    """
+    Custom permission to check if the request contains a valid API Key.
+    The API Key should be passed in the X-API-Key header.
+    """
+    def has_permission(self, request, view):
+        api_key = request.headers.get('X-API-Key')
+        if not api_key:
+            return False
+        valid_api_key = settings.SCANNER_API_KEY
+        return api_key == valid_api_key
+
 def save_file_safely(file, so_number, idx):
     """
     Safely save uploaded file with validation
@@ -126,7 +138,7 @@ def save_file_safely(file, so_number, idx):
 
 # Zebra Scanner API
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([HasValidAPIKey])
 def scanner_api(request):
     """
     Zebra device product scan API

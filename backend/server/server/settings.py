@@ -183,3 +183,6 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
+
+# Scanner API Key Authentication
+SCANNER_API_KEY = os.getenv('SCANNER_API_KEY', 'insecure-default-key-change-in-production')
