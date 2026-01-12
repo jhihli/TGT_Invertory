@@ -253,9 +253,7 @@ export async function updateProduct(id: string, formData: FormData | {
     };
     const response = await fetch(url, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(processedData),
     });
     if (!response.ok) {
