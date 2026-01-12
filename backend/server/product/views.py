@@ -97,6 +97,22 @@ class HasValidAPIKey(BasePermission):
         valid_api_key = settings.SCANNER_API_KEY
         return api_key == valid_api_key
 
+class IsAuthenticatedOrHasAPIKey(BasePermission):
+    """
+    Allow access if user is authenticated with JWT OR has valid API Key.
+    This allows both website users (JWT) and scanner/API clients (API Key) to access endpoints.
+    """
+    def has_permission(self, request, view):
+        # Check for API Key first
+        api_key = request.headers.get('X-API-Key')
+        if api_key:
+            valid_api_key = settings.SCANNER_API_KEY
+            if api_key == valid_api_key:
+                return True
+
+        # Fall back to JWT authentication
+        return IsAuthenticated().has_permission(request, view)
+
 def save_file_safely(file, so_number, idx):
     """
     Safely save uploaded file with validation
@@ -256,7 +272,7 @@ def scanner_api(request):
 
 # 批次更新產品狀態 API
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticatedOrHasAPIKey])
 def batch_update_status(request):
     """
     批次更新多個產品的 current_status
@@ -283,7 +299,7 @@ class StandardPagination(PageNumberPagination):
     max_page_size = 100
 # endpoints
 class ProductListAPIView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrHasAPIKey]
     serializer_class = ProductSerializer
     pagination_class = StandardPagination
     
@@ -527,7 +543,7 @@ class ProductListAPIView(generics.ListAPIView):
 
 #edit-from will go here
 @api_view(['PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticatedOrHasAPIKey])
 def product_detail(request, pk):
     try:
         product = Product.objects.get(pk=pk)
@@ -590,7 +606,7 @@ def product_detail(request, pk):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticatedOrHasAPIKey])
 def get_all_products_for_export(request):
     """
     獲取符合條件的產品進行匯出
@@ -627,7 +643,7 @@ def get_all_products_for_export(request):
 
 # Cargo API endpoints
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticatedOrHasAPIKey])
 def cargo_list(request):
     """
     List all cargos or create a new cargo

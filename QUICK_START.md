@@ -14,7 +14,7 @@ cd backend/server
 ```bash
 curl -X POST http://localhost:8000/api/token/ ^
   -H "Content-Type: application/json" ^
-  -d "{\"username\":\"admin\",\"password\":\"your_password\"}"
+  -d "{\"username\":\"admin\",\"password\":\"1234\"}"
 ```
 
 Save the `access` token from response.

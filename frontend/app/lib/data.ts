@@ -91,6 +91,14 @@ export async function fetchCardData() {
 }
 
 const ITEMS_PER_PAGE = 100;
+
+// Helper function to add API Key to all requests
+function getAuthHeaders(): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '',
+  };
+}
 export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
@@ -246,9 +254,7 @@ export async function getProducts(
       `sortOrder=${sortOrder}`,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         cache: 'no-store',
       }
     );
@@ -286,9 +292,7 @@ export async function fetchProductsTotalPage(query: string): Promise<number> {
 
     const response = await fetch(url.toString(), {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -320,9 +324,7 @@ export async function getProductById(id: string): Promise<Product | null> {
   try {
     const response = await fetch(url.toString(), {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
       cache: 'no-store' // Ensure we get fresh data
     });
 
@@ -365,9 +367,7 @@ export async function getAllProducts(query: string) {
 
     const response = await fetch(url.toString(), {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
     });
 
 
