@@ -185,9 +185,7 @@ export async function deleteProducts(ids: string[]) {
       
       const response = await fetch(url, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
