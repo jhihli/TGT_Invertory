@@ -9,9 +9,24 @@ class CargoSerializer(serializers.ModelSerializer):
 
 
 class PhotoSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
     class Meta:
         model = Photo
-        fields = ['id', 'path']
+        fields = ['id', 'path', 'url']
+
+    def get_url(self, obj):
+        """
+        Return the full URL to access the photo.
+        Uses Django's request context to build absolute URL.
+        """
+        request = self.context.get('request')
+        if obj.path and request:
+            return request.build_absolute_uri(obj.path.url)
+        elif obj.path:
+            # Fallback if request context is not available
+            return obj.path.url
+        return None
 
 
 class ProductSerializer(serializers.ModelSerializer):
