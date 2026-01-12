@@ -1,5 +1,7 @@
 from rest_framework import serializers
+from django.conf import settings
 from .models import Product, Photo, Cargo
+import os
 
 
 class CargoSerializer(serializers.ModelSerializer):
@@ -18,15 +20,25 @@ class PhotoSerializer(serializers.ModelSerializer):
     def get_url(self, obj):
         """
         Return the full URL to access the photo.
-        Uses Django's request context to build absolute URL.
+        Uses PUBLIC_DOMAIN from settings or falls back to request host.
         """
-        request = self.context.get('request')
-        if obj.path and request:
-            return request.build_absolute_uri(obj.path.url)
-        elif obj.path:
-            # Fallback if request context is not available
-            return obj.path.url
-        return None
+        if not obj.path:
+            return None
+
+        # Get the public domain from environment or use request host
+        public_domain = os.getenv('PUBLIC_DOMAIN', '')
+
+        if public_domain:
+            # Use the configured public domain
+            media_path = obj.path.url  # e.g., /media/so123_1.png
+            return f"{public_domain}{media_path}"
+        else:
+            # Fallback to request-based URL building
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.path.url)
+            else:
+                return obj.path.url
 
 
 class ProductSerializer(serializers.ModelSerializer):
