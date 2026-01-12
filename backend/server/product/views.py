@@ -385,7 +385,7 @@ class ProductListAPIView(generics.ListAPIView):
                             if isinstance(v, list):
                                 product_data[k] = v[0] if v else ''
                     # 轉型態
-                    for key in ['so_number', 'weight', 'status', 'note', 'number', 'barcode', 'vender', 'client', 'category']:
+                    for key in ['so_number', 'status', 'note', 'number', 'barcode', 'vender', 'client', 'category']:
                         val = product_data.get(key, '')
                         product_data[key] = str(val).strip()
                     # qty 轉 int
@@ -394,6 +394,16 @@ class ProductListAPIView(generics.ListAPIView):
                             product_data['qty'] = int(product_data['qty'])
                         except Exception:
                             product_data['qty'] = 0
+                    # weight 轉 int or None
+                    if 'weight' in product_data:
+                        weight_val = product_data['weight']
+                        if weight_val == '' or weight_val is None:
+                            product_data['weight'] = None
+                        else:
+                            try:
+                                product_data['weight'] = int(weight_val)
+                            except (ValueError, TypeError):
+                                product_data['weight'] = None
                     # date 格式
                     if 'date' in product_data:
                         product_data['date'] = str(product_data['date']).strip()

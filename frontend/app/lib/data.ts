@@ -444,9 +444,7 @@ export async function getCargos(): Promise<Cargo[]> {
 
     const response = await fetch(`${API_URL}/product/cargos/`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       cache: 'no-store',
     });
 
