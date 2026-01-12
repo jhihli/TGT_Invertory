@@ -388,6 +388,7 @@ export async function getAllProductsForExport(query: string = '') {
       `${API_URL}/product/export/?search=${query}`,
       {
         method: 'GET',
+        headers: getAuthHeaders(),
       }
     );
 
@@ -418,9 +419,7 @@ export async function getSSDForExport(query: string = '') {
 
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
