@@ -16,9 +16,7 @@ export async function batchUpdateProductStatus(ids: string[], targetStatus: '0' 
     }
     const response = await fetch(`${API_URL}/product/batch_update_status/`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(body),
     });
     const result = await response.json();
@@ -48,6 +46,14 @@ import postgres from 'postgres';
 
 const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
 const NEXTAUTH_URL = process.env.NEXTAUTH_URL;
+
+// Helper function to add API Key to all requests
+function getAuthHeaders(): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '',
+  };
+}
 
 const InvoiceSchema = z.object({
   id: z.string(),
@@ -100,6 +106,9 @@ export async function createProduct(formData: FormData | Array<any>) {
 
       const response = await fetch(`${API_URL}/product/products/`, {
         method: 'POST',
+        headers: {
+          'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '',
+        },
         body: formData,
         credentials: 'include',
       });
@@ -131,9 +140,7 @@ export async function createProduct(formData: FormData | Array<any>) {
       }));
       const response = await fetch(`${API_URL}/product/products/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(productsData),
       });
       const result = await response.json();
@@ -225,6 +232,9 @@ export async function updateProduct(id: string, formData: FormData | {
     if (typeof FormData !== 'undefined' && formData instanceof FormData) {
       const response = await fetch(url, {
         method: 'PUT',
+        headers: {
+          'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '',
+        },
         body: formData,
         credentials: 'include',
       });
