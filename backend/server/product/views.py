@@ -14,10 +14,6 @@ from datetime import datetime
 from django.conf import settings
 import os
 import re
-import sys
-
-# Global debug flag - prints to stderr which Django captures
-DEBUG_UPLOADS = True
 
 # File validation helper functions
 def sanitize_filename(filename):
@@ -371,13 +367,6 @@ class ProductListAPIView(generics.ListAPIView):
         Handles bulk product creation. Accepts a list of products.
         支援多圖上傳，將每張圖片存入 Photo 並關聯到 Product。
         """
-        # DEBUG: Log at entry point - use both print and stderr
-        import sys
-        debug_msg = f"\n{'='*80}\n[DEBUG] POST /product/products/ called at {datetime.now()}\n[DEBUG] request.method: {request.method}\n[DEBUG] request.content_type: {request.content_type}\n[DEBUG] request.FILES keys: {list(request.FILES.keys())}\n[DEBUG] request.FILES: {request.FILES}\n[DEBUG] request.data type: {type(request.data)}\n{'='*80}\n"
-        print(debug_msg, flush=True)
-        sys.stderr.write(debug_msg)
-        sys.stderr.flush()
-
         try:
             with transaction.atomic():
                 products_data = request.data if isinstance(request.data, list) else [request.data]
@@ -385,8 +374,6 @@ class ProductListAPIView(generics.ListAPIView):
                 errors = []
 
                 for idx, product_data in enumerate(products_data):
-                    # debug log
-                    print(f"[DEBUG] product_data after dict conversion: {product_data}")
                     # 將 QueryDict 轉成普通 dict，並把所有 value 只取第一個
                     if hasattr(product_data, 'lists'):
                         product_data = {k: v[0] if isinstance(v, list) else v for k, v in product_data.lists()}
@@ -460,35 +447,17 @@ class ProductListAPIView(generics.ListAPIView):
                             else:
                                 product = serializer.save()
 
-                            # DEBUG: Always log file upload info
-                            sys.stderr.write(f"[DEBUG] Product saved, ID: {product.id}\n")
-                            sys.stderr.write(f"[DEBUG] products_data length: {len(products_data)}\n")
-                            sys.stderr.write(f"[DEBUG] request.FILES: {request.FILES}\n")
-                            sys.stderr.write(f"[DEBUG] request.FILES.keys(): {list(request.FILES.keys())}\n")
-                            sys.stderr.flush()
-
                             # 僅於單一產品時處理多圖
                             if len(products_data) == 1:
                                 product_files = request.FILES.getlist('photos')
-                                sys.stderr.write(f"[DEBUG] Number of files received: {len(product_files)}\n")
-                                sys.stderr.write(f"[DEBUG] File names: {[f.name for f in product_files]}\n")
-                                sys.stderr.flush()
                                 so_number_val = product_data.get('so_number', 'photo')
                                 failed_uploads = []
 
                                 for idx, img in enumerate(product_files, start=1):
-                                    sys.stderr.write(f"[DEBUG] Attempting to save file {idx}: {img.name}\n")
-                                    sys.stderr.flush()
                                     success, result = save_file_safely(img, so_number_val, idx)
-                                    sys.stderr.write(f"[DEBUG] save_file_safely returned: success={success}, result={result}\n")
-                                    sys.stderr.flush()
                                     if success:
-                                        photo = Photo.objects.create(product=product, path=result)
-                                        sys.stderr.write(f"[DEBUG] Photo created: ID={photo.id}, path={photo.path}\n")
-                                        sys.stderr.flush()
+                                        Photo.objects.create(product=product, path=result)
                                     else:
-                                        sys.stderr.write(f"[DEBUG] File save FAILED: {result}\n")
-                                        sys.stderr.flush()
                                         failed_uploads.append({'file': img.name, 'error': result})
 
                                 # Include upload warnings in product data if any failed
