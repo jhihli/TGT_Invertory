@@ -14,6 +14,10 @@ from datetime import datetime
 from django.conf import settings
 import os
 import re
+import sys
+
+# Global debug flag - prints to stderr which Django captures
+DEBUG_UPLOADS = True
 
 # File validation helper functions
 def sanitize_filename(filename):
@@ -367,12 +371,12 @@ class ProductListAPIView(generics.ListAPIView):
         Handles bulk product creation. Accepts a list of products.
         支援多圖上傳，將每張圖片存入 Photo 並關聯到 Product。
         """
-        # DEBUG: Log at entry point
-        print(f"[DEBUG] ========== POST /product/products/ called ==========")
-        print(f"[DEBUG] request.method: {request.method}")
-        print(f"[DEBUG] request.content_type: {request.content_type}")
-        print(f"[DEBUG] request.FILES: {request.FILES}")
-        print(f"[DEBUG] request.data type: {type(request.data)}")
+        # DEBUG: Log at entry point - use both print and stderr
+        import sys
+        debug_msg = f"\n{'='*80}\n[DEBUG] POST /product/products/ called at {datetime.now()}\n[DEBUG] request.method: {request.method}\n[DEBUG] request.content_type: {request.content_type}\n[DEBUG] request.FILES keys: {list(request.FILES.keys())}\n[DEBUG] request.FILES: {request.FILES}\n[DEBUG] request.data type: {type(request.data)}\n{'='*80}\n"
+        print(debug_msg, flush=True)
+        sys.stderr.write(debug_msg)
+        sys.stderr.flush()
 
         try:
             with transaction.atomic():
@@ -457,17 +461,18 @@ class ProductListAPIView(generics.ListAPIView):
                                 product = serializer.save()
 
                             # DEBUG: Always log file upload info
-                            print(f"[DEBUG] Product saved, ID: {product.id}")
-                            print(f"[DEBUG] products_data length: {len(products_data)}")
-                            print(f"[DEBUG] request.FILES: {request.FILES}")
-                            print(f"[DEBUG] request.FILES.keys(): {list(request.FILES.keys())}")
+                            sys.stderr.write(f"[DEBUG] Product saved, ID: {product.id}\n")
+                            sys.stderr.write(f"[DEBUG] products_data length: {len(products_data)}\n")
+                            sys.stderr.write(f"[DEBUG] request.FILES: {request.FILES}\n")
+                            sys.stderr.write(f"[DEBUG] request.FILES.keys(): {list(request.FILES.keys())}\n")
+                            sys.stderr.flush()
 
                             # 僅於單一產品時處理多圖
                             if len(products_data) == 1:
                                 product_files = request.FILES.getlist('photos')
-                                print(f"[DEBUG] Number of files received: {len(product_files)}")
-                                print(f"[DEBUG] request.FILES keys: {list(request.FILES.keys())}")
-                                print(f"[DEBUG] request.FILES: {request.FILES}")
+                                sys.stderr.write(f"[DEBUG] Number of files received: {len(product_files)}\n")
+                                sys.stderr.write(f"[DEBUG] File names: {[f.name for f in product_files]}\n")
+                                sys.stderr.flush()
                                 so_number_val = product_data.get('so_number', 'photo')
                                 failed_uploads = []
 
