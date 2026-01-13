@@ -477,10 +477,18 @@ class ProductListAPIView(generics.ListAPIView):
                                 failed_uploads = []
 
                                 for idx, img in enumerate(product_files, start=1):
+                                    sys.stderr.write(f"[DEBUG] Attempting to save file {idx}: {img.name}\n")
+                                    sys.stderr.flush()
                                     success, result = save_file_safely(img, so_number_val, idx)
+                                    sys.stderr.write(f"[DEBUG] save_file_safely returned: success={success}, result={result}\n")
+                                    sys.stderr.flush()
                                     if success:
-                                        Photo.objects.create(product=product, path=result)
+                                        photo = Photo.objects.create(product=product, path=result)
+                                        sys.stderr.write(f"[DEBUG] Photo created: ID={photo.id}, path={photo.path}\n")
+                                        sys.stderr.flush()
                                     else:
+                                        sys.stderr.write(f"[DEBUG] File save FAILED: {result}\n")
+                                        sys.stderr.flush()
                                         failed_uploads.append({'file': img.name, 'error': result})
 
                                 # Include upload warnings in product data if any failed
