@@ -221,7 +221,7 @@ def scanner_api(request):
                 else:
                     failed_uploads.append({'file': img.name, 'error': result})
 
-            response_data = {'success': True, 'product': ProductSerializer(product).data}
+            response_data = {'success': True, 'product': ProductSerializer(product, context={'request': request}).data}
             if failed_uploads:
                 response_data['warning'] = f'{len(failed_uploads)} file(s) failed to upload'
                 response_data['failed_uploads'] = failed_uploads
@@ -462,12 +462,12 @@ class ProductListAPIView(generics.ListAPIView):
                                         failed_uploads.append({'file': img.name, 'error': result})
 
                                 # Include upload warnings in product data if any failed
-                                product_serialized = ProductSerializer(product).data
+                                product_serialized = ProductSerializer(product, context={'request': request}).data
                                 if failed_uploads:
                                     product_serialized['upload_warnings'] = failed_uploads
                                 created_products.append(product_serialized)
                             else:
-                                created_products.append(ProductSerializer(product).data)
+                                created_products.append(ProductSerializer(product, context={'request': request}).data)
                         except Exception as e:
                             errors.append({
                                 'data': product_data,
@@ -608,10 +608,10 @@ def product_detail(request, pk):
             data['current_status'] = data.pop('status')
         if 'note' in data:
             data['noted'] = data.pop('note')
-        serializer = ProductSerializer(product, data=data, partial=True)
+        serializer = ProductSerializer(product, data=data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
-            return Response(ProductSerializer(product).data)
+            return Response(ProductSerializer(product, context={'request': request}).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
