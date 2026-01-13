@@ -367,6 +367,13 @@ class ProductListAPIView(generics.ListAPIView):
         Handles bulk product creation. Accepts a list of products.
         支援多圖上傳，將每張圖片存入 Photo 並關聯到 Product。
         """
+        # DEBUG: Log at entry point
+        print(f"[DEBUG] ========== POST /product/products/ called ==========")
+        print(f"[DEBUG] request.method: {request.method}")
+        print(f"[DEBUG] request.content_type: {request.content_type}")
+        print(f"[DEBUG] request.FILES: {request.FILES}")
+        print(f"[DEBUG] request.data type: {type(request.data)}")
+
         try:
             with transaction.atomic():
                 products_data = request.data if isinstance(request.data, list) else [request.data]
@@ -448,6 +455,13 @@ class ProductListAPIView(generics.ListAPIView):
                                 product = serializer.save(created_by=created_by_user)
                             else:
                                 product = serializer.save()
+
+                            # DEBUG: Always log file upload info
+                            print(f"[DEBUG] Product saved, ID: {product.id}")
+                            print(f"[DEBUG] products_data length: {len(products_data)}")
+                            print(f"[DEBUG] request.FILES: {request.FILES}")
+                            print(f"[DEBUG] request.FILES.keys(): {list(request.FILES.keys())}")
+
                             # 僅於單一產品時處理多圖
                             if len(products_data) == 1:
                                 product_files = request.FILES.getlist('photos')
