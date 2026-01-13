@@ -11,7 +11,7 @@ from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth import authenticate
 
-class UserListAPIView(generics.ListAPIView):
+class UserListAPIView(generics.GenericAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = CustomUserSerializer
 
@@ -33,6 +33,14 @@ class UserListAPIView(generics.ListAPIView):
         if role:
             queryset = queryset.filter(role=role)  # Filter users by role
         return queryset
+
+    def get(self, request, *args, **kwargs):
+        """
+        List users endpoint - requires authentication
+        """
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """
