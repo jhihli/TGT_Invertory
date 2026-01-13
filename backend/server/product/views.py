@@ -451,6 +451,9 @@ class ProductListAPIView(generics.ListAPIView):
                             # 僅於單一產品時處理多圖
                             if len(products_data) == 1:
                                 product_files = request.FILES.getlist('photos')
+                                print(f"[DEBUG] Number of files received: {len(product_files)}")
+                                print(f"[DEBUG] request.FILES keys: {list(request.FILES.keys())}")
+                                print(f"[DEBUG] request.FILES: {request.FILES}")
                                 so_number_val = product_data.get('so_number', 'photo')
                                 failed_uploads = []
 
