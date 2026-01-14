@@ -459,7 +459,7 @@ export default function EditForm({ product }: { product: Product }) {
             {/* 現有圖片 */}
             {existingPhotos.map(photo => (
               <div key={photo.id.toString()} className="relative group w-18 h-18 flex flex-col items-center justify-center">
-                <img src={photo.path} alt="photo" className="w-16 h-16 object-cover rounded border shadow-sm" />
+                <img src={photo.url || photo.path} alt="photo" className="w-16 h-16 object-cover rounded border shadow-sm" />
                 <button type="button" onClick={() => handleRemoveExistingPhoto(photo.id)}
                   className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-base shadow hover:bg-red-600 transition"
                   title="移除舊圖">×</button>

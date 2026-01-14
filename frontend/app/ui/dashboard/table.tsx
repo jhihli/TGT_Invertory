@@ -13,6 +13,11 @@ import { deleteProducts } from '@/app/lib/actions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PencilIcon } from '@heroicons/react/24/outline';
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
+import Zoom from "yet-another-react-lightbox/plugins/zoom";
+import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
+import Download from "yet-another-react-lightbox/plugins/download";
 
 // Create a context for the delete message
 export const DeleteMessageContext = createContext<{
@@ -110,6 +115,9 @@ export default function ProductsTable({
   // 新增照片 Dialog 狀態
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [photoDialogPhotos, setPhotoDialogPhotos] = useState<string[]>([]);
+  // Lightbox state for full-screen photo viewing
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Fetch initial products and total pages
   useEffect(() => {
@@ -370,36 +378,109 @@ export default function ProductsTable({
       )}
       {/* Photo Dialog */}
       {photoDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-8 relative animate-fade-in">
-            <button
-              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-xl font-bold"
-              onClick={() => setPhotoDialogOpen(false)}
-              aria-label="關閉"
-            >
-              ×
-            </button>
-            <div className="text-base font-semibold mb-4 text-gray-800">產品照片</div>
-            {photoDialogPhotos.length === 0 ? (
-              <div className="text-gray-500 text-center">無照片</div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-h-[60vh] overflow-y-auto">
-                {photoDialogPhotos.map((url, idx) => (
-                  <div key={idx} className="flex flex-col items-center bg-gray-50 rounded-lg shadow p-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={`photo-${idx}`}
-                      className="object-contain rounded-lg border border-gray-200 shadow-md max-h-64 max-w-full mb-2"
-                      style={{ width: '100%', height: '260px', background: '#f3f4f6' }}
-                    />
-                  </div>
-                ))}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden relative animate-fade-in">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  產品照片
+                  <span className="ml-2 text-sm font-normal text-gray-600">({photoDialogPhotos.length} 張)</span>
+                </h3>
               </div>
-            )}
+              <button
+                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
+                onClick={() => setPhotoDialogOpen(false)}
+                aria-label="關閉"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+              {photoDialogPhotos.length === 0 ? (
+                <div className="text-gray-500 text-center py-12">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p>無照片</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {photoDialogPhotos.map((url, idx) => (
+                    <div
+                      key={idx}
+                      className="group relative bg-white rounded-lg overflow-hidden shadow-md hover:shadow-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1"
+                      onClick={() => {
+                        setLightboxIndex(idx);
+                        setLightboxOpen(true);
+                      }}
+                      title="點擊放大查看"
+                    >
+                      {/* Image Container */}
+                      <div className="relative aspect-square bg-gray-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`photo-${idx}`}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        />
+                        {/* Overlay on hover */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-white flex flex-col items-center gap-2">
+                            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                            </svg>
+                            <span className="text-sm font-medium">點擊放大</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Photo Number Badge */}
+                      <div className="absolute top-2 right-2 bg-black/70 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                        #{idx + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
+      {/* Lightbox for full-screen photo viewing with zoom and download */}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        index={lightboxIndex}
+        slides={photoDialogPhotos.map(url => ({
+          src: url,
+          download: url  // Enable download for this photo
+        }))}
+        plugins={[Zoom, Fullscreen, Download]}
+        zoom={{
+          maxZoomPixelRatio: 3,
+          scrollToZoom: true,
+          doubleClickDelay: 300,
+          doubleClickMaxStops: 2
+        }}
+        controller={{
+          closeOnBackdropClick: true,
+          closeOnPullDown: true
+        }}
+        on={{
+          view: ({ index }) => setLightboxIndex(index)
+        }}
+        carousel={{
+          finite: false,
+          preload: 2
+        }}
+      />
       <div className="inline-block min-w-full align-middle">
         <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
           <div className="max-h-[600px] overflow-y-auto">

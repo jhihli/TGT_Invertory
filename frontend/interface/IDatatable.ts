@@ -28,6 +28,7 @@ export interface Photo {
     id: bigint | string;
     product_id: bigint | string; // 關聯產品ID，欄位名稱與資料庫一致
     path: string; // 圖片路徑/URL，欄位名稱與資料庫一致
+    url?: string; // Full URL from serializer (PUBLIC_DOMAIN + path)
 }
 
 export type User = {
