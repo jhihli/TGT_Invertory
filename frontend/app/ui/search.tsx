@@ -3,20 +3,11 @@
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useSearchParams, usePathname, useRouter } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
-import { useState, useEffect } from 'react';
 
-export default function Search({ placeholder, defaultDate }: { placeholder: string, defaultDate?: string }) {
+export default function Search({ placeholder, defaultDate }: { placeholder: string; defaultDate?: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (!initialized && defaultDate) {
-      handleSearch(defaultDate);
-      setInitialized(true);
-    }
-  }, [defaultDate]);
 
   const handleSearch = useDebouncedCallback((term) => {
     const params = new URLSearchParams(searchParams);
@@ -25,12 +16,16 @@ export default function Search({ placeholder, defaultDate }: { placeholder: stri
     if (term) {
       params.set('query', term);
     } else {
-      params.delete('query');
+      // When user clears the field, set query to empty string (not delete)
+      // This distinguishes "user cleared" from "first load"
+      params.set('query', '');
     }
     replace(`${pathname}?${params.toString()}`);
   }, 300);
 
-  const today = defaultDate || searchParams.get('query')?.toString() || '';
+  // Use URL query param if exists, otherwise use defaultDate (today) for first load
+  const urlQuery = searchParams.get('query');
+  const displayValue = urlQuery !== null ? urlQuery : (defaultDate || '');
 
   return (
     <div className="relative flex flex-1 flex-shrink-0">
@@ -43,7 +38,7 @@ export default function Search({ placeholder, defaultDate }: { placeholder: stri
         onChange={(e) => {
           handleSearch(e.target.value);
         }}
-        defaultValue={today}
+        defaultValue={displayValue}
       />
       <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
     </div>

@@ -18,7 +18,9 @@ export default async function Page({
 }) {
   const params = await searchParams;
   const today = new Date().toISOString().split('T')[0];
-  const query = params?.query || today;
+  // Use today's date as default only if no query param exists (first load)
+  // If query param exists (even empty string), user has interacted - use their value
+  const query = params?.query !== undefined ? params.query : today;
   let currentPage = Number(params?.page) || 1;
   let products: any[] = [];
   let All_products: any[] = [];

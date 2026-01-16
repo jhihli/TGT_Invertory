@@ -12,6 +12,7 @@ import RamFormButton from './ram-button';
 import BoundButton from './bound-button';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import SideNav, { NavButton } from './side-nav';
+import { useSession } from 'next-auth/react';
 
 export default function ClientActionBar({
   query,
@@ -19,7 +20,14 @@ export default function ClientActionBar({
   query: string;
 }) {
   const today = new Date().toISOString().split('T')[0];
-  
+
+  // Get user role for permission check
+  const { data: session } = useSession();
+  const userRole = session?.user?.role;
+
+  // Only vz_user cannot see the 功能選單 (Function Menu) button
+  const canSeeMenu = userRole !== 'vz_user';
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-3 mb-4">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -36,8 +44,9 @@ export default function ClientActionBar({
           <CreateProduct />
           
           
-          {/* 側邊導覽列 */}
-          <SideNav trigger={
+          {/* 側邊導覽列 - hidden from vz_user */}
+          {canSeeMenu && (
+            <SideNav trigger={
             <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
               <Bars3Icon className="h-6 w-6" />
             </button>
@@ -60,7 +69,8 @@ export default function ClientActionBar({
             <NavButton>
               <TicketButton query={query} />
             </NavButton>
-          </SideNav>
+            </SideNav>
+          )}
         </div>
       </div>
     </div>

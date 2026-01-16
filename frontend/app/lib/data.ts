@@ -242,6 +242,11 @@ export async function getProducts(
   sortOrder: 'asc' | 'desc' = 'asc'
 ) {
   try {
+    // If query is empty, return empty array immediately
+    if (!query || query.trim() === '') {
+      return [];
+    }
+
     // 確保頁碼至少為1
     const page = Math.max(1, currentPage);
 
@@ -279,6 +284,11 @@ export async function getProducts(
 
 export async function fetchProductsTotalPage(query: string): Promise<number> {
   try {
+    // If query is empty, return 0 pages
+    if (!query || query.trim() === '') {
+      return 0;
+    }
+
     const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
     if (!API_URL) {
       console.error("API URL is not set!");
@@ -382,6 +392,11 @@ export async function getAllProducts(query: string) {
 
 export async function getAllProductsForExport(query: string = '') {
   try {
+    // If query is empty, return empty array immediately
+    if (!query || query.trim() === '') {
+      return [];
+    }
+
     const API_URL = process.env.NEXT_PUBLIC_Django_API_URL;
 
     const response = await fetch(
