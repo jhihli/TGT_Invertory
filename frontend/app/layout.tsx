@@ -10,6 +10,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <title>TGT Inventory</title>
+        <link rel="icon" href="/logo.png" />
+      </head>
       <body className={`${inter.className} antialiased`}>
         <NextAuthSessionProvider>{children}</NextAuthSessionProvider>
       </body>
