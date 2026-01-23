@@ -183,6 +183,7 @@ def scanner_api(request):
             'date': data.get('date', ''),
             'barcode': data.get('barcode', ''),
             'so_number': data.get('so_number', ''),
+            'number': data.get('number', ''),
             'weight': data.get('weight', ''),
             'current_status': '0',
             'noted': data.get('noted', ''),
