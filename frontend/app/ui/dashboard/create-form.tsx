@@ -4,7 +4,7 @@ import { Button } from '@/app/ui/button';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createProduct } from '@/app/lib/actions';
-import { PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PencilSquareIcon, PlusIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { lusitana } from '@/app/ui/fonts';
 import Dialog from '@/app/ui/dialog';
 import { getCargos } from '@/app/lib/data';
@@ -34,9 +34,8 @@ export default function Form() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [number, setNumber] = useState('');
+  const [numberItems, setNumberItems] = useState<{number: string, qty: string}[]>([{number: '', qty: ''}]);
   const [barcode, setBarcode] = useState('');
-  const [qty, setQty] = useState(''); // 預設為空
   const [date, setDate] = useState(searchParams.get('query') || '');
   const [vender, setVender] = useState('');
   const [client, setClient] = useState('');
@@ -50,7 +49,6 @@ export default function Form() {
   const [soNumberError, setSoNumberError] = useState(''); // 新增
   const [cargo, setCargo] = useState(''); // 新增 cargo
   const [cargos, setCargos] = useState<Cargo[]>([]); // 新增 cargos list
-  const [qtyError, setQtyError] = useState(''); // 新增數量錯誤訊息
   const [weightError, setWeightError] = useState(''); // 新增重量錯誤訊息
 
   // Add state for temporary products
@@ -118,30 +116,6 @@ export default function Form() {
     router.push(`?${params.toString()}`);
   };
 
-  // Handle quantity change with validation
-  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    // Allow empty value
-    if (value === '') {
-      setQty('');
-      setQtyError('');
-      return;
-    }
-
-    // Check if value is a valid number
-    if (!/^\d+$/.test(value)) {
-      setQtyError('Quantity must be a number');
-      return;
-    }
-
-    // Remove leading zeros (e.g., '00222' becomes '222', '00002' becomes '2')
-    const cleanedValue = value.replace(/^0+/, '') || '0';
-
-    setQty(cleanedValue);
-    setQtyError('');
-  };
-
   // Handle weight change with validation
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -179,6 +153,42 @@ export default function Form() {
     setWeightError('');
   };
 
+  // Handle adding a new number+qty item
+  const handleAddNumberItem = () => {
+    setNumberItems([...numberItems, {number: '', qty: ''}]);
+  };
+
+  // Handle removing a number+qty item
+  const handleRemoveNumberItem = (index: number) => {
+    if (numberItems.length > 1) {
+      setNumberItems(numberItems.filter((_, i) => i !== index));
+    }
+  };
+
+  // Handle updating number field (force uppercase)
+  const handleNumberChange = (index: number, value: string) => {
+    const newItems = [...numberItems];
+    newItems[index].number = value.toUpperCase();
+    setNumberItems(newItems);
+  };
+
+  // Handle updating qty field for a number item
+  const handleNumberQtyChange = (index: number, value: string) => {
+    // Allow empty or valid number
+    if (value !== '' && !/^\d+$/.test(value)) {
+      return;
+    }
+    const newItems = [...numberItems];
+    // Remove leading zeros
+    newItems[index].qty = value.replace(/^0+/, '') || (value === '' ? '' : '0');
+    setNumberItems(newItems);
+  };
+
+  // Handle SO Number change (force uppercase)
+  const handleSoNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSoNumber(e.target.value.toUpperCase());
+  };
+
   // 處理照片上傳
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -195,9 +205,8 @@ export default function Form() {
 
   // Function to clear form fields
   const clearForm = () => {
-    // setNumber(''); // 保留 - retain previous value
+    setNumberItems([{number: '', qty: ''}]); // 重置為單一空項目
     setBarcode('');
-    setQty(''); // 清空為空字串
     // setCategory('0'); // 保留 - retain previous value
     setPhotos([]); // 清空照片
     // setSoNumber(''); // 保留 - retain previous value
@@ -205,10 +214,9 @@ export default function Form() {
     // setCurrentStatus('0'); // 保留 - retain previous value
     setNoted('');
     setSoNumberError('');
-    setQtyError(''); // 清空錯誤訊息
     setWeightError(''); // 清空錯誤訊息
     // setCargo(''); // 保留 - retain previous value
-    // vender, client, date, number, category, status, cargo, so_number 保留
+    // vender, client, date, category, status, cargo, so_number 保留
   };
 
   // Function to add product to temporary list
@@ -224,21 +232,25 @@ export default function Form() {
       setSoNumberError('');
     }
 
-    // Check for validation errors in qty and weight
-    if (qtyError || weightError) {
+    // Check for validation errors in weight
+    if (weightError) {
       alert('Please fix the validation errors before adding the product');
       hasError = true;
     }
 
     if (hasError) return;
 
-    // Create a temporary product
-    const newProduct: TempProduct = {
-      id: Date.now().toString(),
-      number,
+    // Filter out items with empty numbers, keep items that have number or qty
+    const validItems = numberItems.filter(item => item.number.trim() !== '' || item.qty.trim() !== '');
+    const itemsToUse = validItems.length > 0 ? validItems : [{number: '', qty: ''}];
+
+    // Create one product for each number+qty item
+    const newProducts: TempProduct[] = itemsToUse.map((item, idx) => ({
+      id: `${Date.now()}-${idx}`,
+      number: item.number,
       so_number,
       barcode,
-      qty,
+      qty: item.qty,
       weight,
       date,
       vender,
@@ -248,11 +260,11 @@ export default function Form() {
       noted,
       photos,
       cargo: cargo || undefined,
-    };
+    }));
 
     // Add to temporary products
-    setTempProducts([...tempProducts, newProduct]);
-    
+    setTempProducts([...tempProducts, ...newProducts]);
+
     // Clear form for next entry
     clearForm();
   };
@@ -462,23 +474,48 @@ export default function Form() {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-4 w-full">
-              {/* Number */}
-              <div className="mb-0">
-                <label htmlFor="number" className="mb-2 block text-sm font-bold text-gray-700">
-                  Number
-                </label>
-                <div className="relative">
-                  <input
-                    id="number"
-                    name="number"
-                    value={number}
-                    onChange={(e) => setNumber(e.target.value)}
-                    className="peer block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    placeholder="Enter product number"
-                  />
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500">
-                    <path fillRule="evenodd" d="M7.491 5.992a.75.75 0 0 1 .75-.75h12a.75.75 0 1 1 0 1.5h-12a.75.75 0 0 1-.75-.75ZM7.49 11.995a.75.75 0 0 1 .75-.75h12a.75.75 0 0 1 0 1.5h-12a.75.75 0 0 1-.75-.75ZM7.491 17.994a.75.75 0 0 1 .75-.75h12a.75.75 0 1 1 0 1.5h-12a.75.75 0 0 1-.75-.75ZM2.24 3.745a.75.75 0 0 1 .75-.75h1.125a.75.75 0 0 1 .75.75v3h.375a.75.75 0 0 1 0 1.5H2.99a.75.75 0 0 1 0-1.5h.375v-2.25H2.99a.75.75 0 0 1-.75-.75ZM2.79 10.602a.75.75 0 0 1 0-1.06 1.875 1.875 0 1 1 2.652 2.651l-.55.55h.35a.75.75 0 0 1 0 1.5h-2.16a.75.75 0 0 1-.53-1.281l1.83-1.83a.375.375 0 0 0-.53-.53.75.75 0 0 1-1.062 0ZM2.24 15.745a.75.75 0 0 1 .75-.75h1.125a1.875 1.875 0 0 1 1.501 2.999 1.875 1.875 0 0 1-1.501 3H2.99a.75.75 0 0 1 0-1.501h1.125a.375.375 0 0 0 .036-.748H3.74a.75.75 0 0 1-.75-.75v-.002a.75.75 0 0 1 .75-.75h.411a.375.375 0 0 0-.036-.748H2.99a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
-                  </svg>
+              {/* Numbers + Qty Section - Multiple number+qty pairs */}
+              <div className="mb-0 md:col-span-2 xl:col-span-3">
+                <div className="flex items-center gap-3 mb-2">
+                  <label className="text-sm font-bold text-gray-700">
+                    Numbers + Qty
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddNumberItem}
+                    className="flex items-center justify-center w-7 h-7 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex flex-wrap gap-3 items-center">
+                    {numberItems.map((item, index) => (
+                      <div key={index} className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-gray-200">
+                        <input
+                          value={item.number}
+                          onChange={(e) => handleNumberChange(index, e.target.value)}
+                          className="w-28 rounded-md border border-gray-300 py-1.5 px-2 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all bg-white"
+                          placeholder="Number"
+                        />
+                        <input
+                          value={item.qty}
+                          onChange={(e) => handleNumberQtyChange(index, e.target.value)}
+                          className="w-16 rounded-md border border-gray-300 py-1.5 px-2 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all bg-white"
+                          placeholder="Qty"
+                        />
+                        {numberItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNumberItem(index)}
+                            className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                          >
+                            <XMarkIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -492,9 +529,8 @@ export default function Form() {
                   id="so_number"
                   name="so_number"
                   value={so_number}
-                  onChange={e => setSoNumber(e.target.value)}
-                  className="block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  placeholder="Enter SO number"
+                  onChange={handleSoNumberChange}
+                  className="block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all uppercase"
                   required={tempProducts.length === 0}
                 />
                 {soNumberError && (
@@ -515,36 +551,10 @@ export default function Form() {
                     value={barcode}
                     onChange={(e) => setBarcode(e.target.value)}
                     className="peer block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    placeholder="Enter barcode"
                     required={tempProducts.length === 0}
                   />
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500">
-                    <path fillRule="evenodd" d="M7.491 5.992a.75.75 0 0 1 .75-.75h12a.75.75 0 1 1 0 1.5h-12a.75.75 0 0 1-.75-.75ZM7.49 11.995a.75.75 0 0 1 .75-.75h12a.75.75 0 0 1 0 1.5h-12a.75.75 0 0 1-.75-.75ZM7.491 17.994a.75.75 0 0 1 .75-.75h12a.75.75 0 1 1 0 1.5h-12a.75.75 0 0 1-.75-.75ZM2.24 3.745a.75.75 0 0 1 .75-.75h1.125a.75.75 0 0 1 .75.75v3h.375a.75.75 0 0 1 0 1.5H2.99a.75.75 0 0 1 0-1.5h.375v-2.25H2.99a.75.75 0 0 1-.75-.75ZM2.79 10.602a.75.75 0 0 1 0-1.06 1.875 1.875 0 1 1 2.652 2.651l-.55.55h.35a.75.75 0 0 1 0 1.5h-2.16a.75.75 0 0 1-.53-1.281l1.83-1.83a.375.375 0 0 0-.53-.53.75.75 0 0 1-1.062 0ZM2.24 15.745a.75.75 0 0 1 .75-.75h1.125a1.875 1.875 0 0 1 1.501 2.999 1.875 1.875 0 0 1-1.501 3H2.99a.75.75 0 0 1 0-1.501h1.125a.375.375 0 0 0 .036-.748H3.74a.75.75 0 0 1-.75-.75v-.002a.75.75 0 0 1 .75-.75h.411a.375.375 0 0 0-.036-.748H2.99a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
-                  </svg>
+                  
                 </div>
-              </div>
-
-              {/* Qty */}
-              <div className="mb-0">
-                <label htmlFor="qty" className="mb-2 block text-sm font-bold text-gray-700">
-                  Quantity
-                </label>
-                <div className="relative">
-                  <input
-                    id="qty"
-                    name="qty"
-                    value={qty}
-                    onChange={handleQtyChange}
-                    className="peer block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    placeholder="Enter quantity"
-                  />
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                  </svg>
-                </div>
-                {qtyError && (
-                  <p className="mt-1 text-xs text-red-500">{qtyError}</p>
-                )}
               </div>
 
               {/* weight */}
@@ -558,7 +568,6 @@ export default function Form() {
                   value={weight}
                   onChange={handleWeightChange}
                   className="block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  placeholder="Enter weight"
                 />
                 {weightError && (
                   <p className="mt-1 text-xs text-red-500">{weightError}</p>
@@ -606,11 +615,9 @@ export default function Form() {
                     value={vender}
                     onChange={handleVenderChange}
                     className="peer block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    placeholder="Enter vendor name"
+                 
                   />
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                  </svg>
+          
                 </div>
               </div>
 
@@ -626,11 +633,9 @@ export default function Form() {
                     value={client}
                     onChange={handleClientChange}
                     className="peer block w-full rounded-md border border-gray-300 py-2 pl-8 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    placeholder="Enter client name"
+                   
                   />
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                  </svg>
+                  
                 </div>
               </div>
 
@@ -689,18 +694,19 @@ export default function Form() {
               </div>
 
               {/* note */}
-              <div className="mb-0 md:col-span-2 xl:col-span-3">
-              <label htmlFor="noted" className="mb-2 block text-sm font-bold text-gray-700">
-                Note
-              </label>
-              <textarea
-                id="noted"
-                name="noted"
-                value={noted}
-                onChange={e => setNoted(e.target.value)}
-                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-y min-h-[40px]"
-                placeholder=""
-              />
+              <div className="mb-0 xl:col-span-2">
+                <label htmlFor="noted" className="mb-2 block text-sm font-bold text-gray-700">
+                  Note
+                </label>
+                <input
+                  type="text"
+                  id="noted"
+                  name="noted"
+                  value={noted}
+                  onChange={e => setNoted(e.target.value)}
+                  className="block w-full rounded-md border border-gray-300 py-2 px-3 text-xs outline-2 placeholder:text-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                
+                />
               </div>
 
               {/* 新增照片上傳 */}

@@ -185,6 +185,7 @@ def scanner_api(request):
             'so_number': data.get('so_number', ''),
             'number': data.get('number', ''),
             'vender': data.get('vender', ''),
+            'qty': data.get('qty', ''),
             'weight': data.get('weight', ''),
             'current_status': '0',
             'noted': data.get('noted', ''),
